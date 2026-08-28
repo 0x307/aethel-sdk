@@ -1,0 +1,19 @@
+[package]
+name = "aethel-sdk"
+version = "0.1.0"
+edition = "2021"
+description = "Ergonomic Rust SDK over aethel-core's post-quantum identity primitives — generate, sign, verify, project, disclose, recover"
+authors = ["Ed Johnson"]
+license = "Apache-2.0"
+repository = "https://github.com/0x307/aethel-sdk"
+keywords = ["post-quantum", "identity", "sdk", "cryptography"]
+categories = ["cryptography"]
+readme = "README.md"
+rust-version = "1.85"
+
+[lib]
+name = "aethel_sdk"
+
+[dependencies]
+
+[dev-dependencies]
