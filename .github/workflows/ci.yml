@@ -14,3 +14,17 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo build --all-targets
       - run: cargo test
+
+  wasm32:
+    name: wasm32 still builds
+    runs-on: ubuntu-latest
+    # wasmtime is a host runtime and cannot compile for wasm32-unknown-unknown.
+    # It is scoped away from that target so this crate stays buildable for a
+    # browser, which P6 needs. Adding wasmtime broke the wasm32 build in
+    # aethel-core, so the scoping gets a job rather than a comment.
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - run: cargo check --target wasm32-unknown-unknown

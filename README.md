@@ -30,6 +30,10 @@ verbs on top of it:
   `aethel-core` revision, with its SHA-256 declared in the package and checked by tests and
   by CI. See [The embedded component](#the-embedded-component) below, including how to
   rebuild it yourself and compare.
+- **The embedded component loads and executes.** `aethel_sdk::component::load()` checks the
+  hash, refuses to instantiate an artifact that fails it, and returns bindings generated from
+  the WIT world. Tests call it and compare the results against `aethel-core`'s native API at
+  the same pinned revision, coefficient for coefficient.
 - Nothing cryptographic is implemented in this crate, and nothing ever will be. Every
   cryptographic operation lives inside the component. That is the charter's L1 boundary: one
   artifact, embedded by every language, and adding a language never adds crypto.
