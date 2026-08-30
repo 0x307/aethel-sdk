@@ -1,7 +1,27 @@
-//! aethel-sdk: scaffolding only, no implementation yet. See ROADMAP.md.
+//! `aethel-sdk`: a Rust surface over aethel-core's post-quantum identity primitives.
 //!
-//! This crate is planned as an ergonomic Rust surface over `aethel-core`'s post-quantum
-//! identity primitives: generate an identity, sign and verify, project it into a context
-//! (PLP), selectively disclose attributes (SAAP), and recover via threshold shares (HTSS).
-//! None of that is implemented in this crate yet — see `README.md` for what runs today
-//! versus what is designed, and `ROADMAP.md` for the milestone sequence.
+//! # What runs today
+//!
+//! The compiled `aethel:core` component is embedded in this crate and its
+//! integrity is checked against a hash the package declares. See [`artifact`].
+//!
+//! That is the whole of what this crate does today. It is the L1 boundary from
+//! the initiative charter: one WebAssembly artifact, embedded by every language,
+//! carrying every cryptographic operation. Nothing in this crate implements
+//! crypto, and nothing in this crate is allowed to.
+//!
+//! # What is designed but not built
+//!
+//! The ergonomic surface. Generating an identity, signing and verifying,
+//! projecting into a context, selectively disclosing attributes, and recovering
+//! through threshold shares are all designed and none of them is callable from
+//! this crate yet. `ROADMAP.md` has the sequence.
+//!
+//! One caveat that outlives this crate's own progress: **SAAP selective
+//! disclosure does not work in the embedded component.** `saap-verify` denies
+//! unconditionally, because the corrected verifier needs a public key that the
+//! current WIT signature has no parameter to carry. This is deliberate and
+//! documented upstream. Do not read a future `disclose` method as evidence that
+//! it started working.
+
+pub mod artifact;

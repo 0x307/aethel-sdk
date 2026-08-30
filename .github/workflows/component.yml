@@ -1,0 +1,136 @@
+name: component
+
+# P5-03 (0X3-53). This package ships a compiled WebAssembly component inside a
+# source package. That is only defensible if a third party can rebuild it from
+# the pinned aethel-core revision and get the same bytes, so this job does
+# exactly what the published rebuild instructions tell a stranger to do, and
+# fails if the result differs from what is committed.
+#
+# The hash is platform-specific: rustc embeds platform paths and links a
+# different std, so the same revision built on Windows or macOS produces
+# different bytes. ubuntu-latest with the toolchain pinned in core/pin.toml is
+# the canonical platform, and that is what runs here.
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  reproduce:
+    name: rebuild the embedded component and compare
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read the pin
+        id: pin
+        run: |
+          value() { grep -E "^$1 *=" core/pin.toml | head -1 | sed -E 's/.*= *"(.*)".*/\1/'; }
+          {
+            echo "repository=$(value repository)"
+            echo "rev=$(value rev)"
+            echo "rust=$(value rust)"
+            echo "wasm_tools=$(value 'wasm-tools')"
+          } >> "$GITHUB_OUTPUT"
+          cat core/pin.toml
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ steps.pin.outputs.rust }}
+          targets: wasm32-unknown-unknown
+
+      - name: Install wasm-tools
+        run: cargo install wasm-tools --version ${{ steps.pin.outputs.wasm_tools }} --locked
+
+      # Built at the path aethel-core's own canonical build uses. rustc embeds it,
+      # so it is part of the artifact's identity, not incidental.
+      - name: Check out aethel-core at the pinned revision
+        run: |
+          mkdir -p /home/runner/work/aethel-core
+          git clone --quiet ${{ steps.pin.outputs.repository }} \
+            /home/runner/work/aethel-core/aethel-core
+          cd /home/runner/work/aethel-core/aethel-core
+          git checkout --quiet ${{ steps.pin.outputs.rev }}
+          echo "aethel-core at $(git rev-parse HEAD)"
+
+      - name: The vendored WIT must be the pinned revision's WIT
+        run: |
+          if ! diff -u /home/runner/work/aethel-core/aethel-core/wit/aethel-core.wit \
+                       core/wit/aethel-core.wit; then
+            echo "core/wit/aethel-core.wit has drifted from the pinned revision."
+            echo "Run scripts/sync-core.sh to re-vendor it."
+            exit 1
+          fi
+          echo "vendored WIT matches the pinned revision"
+
+      - name: Build the component
+        working-directory: /home/runner/work/aethel-core/aethel-core
+        run: |
+          cargo build --release --target wasm32-unknown-unknown \
+            --no-default-features --features component --locked
+          wasm-tools component new \
+            target/wasm32-unknown-unknown/release/aethel_core.wasm \
+            -o /tmp/build1.component.wasm
+
+      - name: The component must validate and expose the declared world
+        run: |
+          wasm-tools validate /tmp/build1.component.wasm
+          wasm-tools component wit /tmp/build1.component.wasm > /tmp/embedded.wit
+          for op in plp-project-at-context plp-prove-identity plp-verify \
+                    saap-prove saap-verify htss-split htss-reconstruct; do
+            grep -q "$op" /tmp/embedded.wit || { echo "MISSING from component: $op"; exit 1; }
+          done
+          grep -q "identity-error" /tmp/embedded.wit || { echo "identity-error absent"; exit 1; }
+
+      - name: Two builds of the pinned revision must be byte-identical
+        working-directory: /home/runner/work/aethel-core/aethel-core
+        run: |
+          rm -rf target/wasm32-unknown-unknown/release
+          cargo build --release --target wasm32-unknown-unknown \
+            --no-default-features --features component --locked
+          wasm-tools component new \
+            target/wasm32-unknown-unknown/release/aethel_core.wasm \
+            -o /tmp/build2.component.wasm
+          if ! cmp -s /tmp/build1.component.wasm /tmp/build2.component.wasm; then
+            echo "NOT REPRODUCIBLE: two builds of the same revision differ"
+            sha256sum /tmp/build1.component.wasm /tmp/build2.component.wasm
+            exit 1
+          fi
+          echo "reproducible: $(sha256sum /tmp/build1.component.wasm)"
+
+      - name: The rebuilt component must equal the one committed to this repo
+        run: |
+          if ! cmp -s /tmp/build1.component.wasm core/aethel_core.component.wasm; then
+            echo "The committed artifact is not what the pinned revision builds."
+            sha256sum /tmp/build1.component.wasm core/aethel_core.component.wasm
+            echo "Run scripts/sync-core.sh to re-vendor it."
+            exit 1
+          fi
+          echo "committed artifact matches a fresh build of ${{ steps.pin.outputs.rev }}"
+
+      # The step above asserts an absence: no difference. An absence assertion is
+      # worth nothing unless the machinery is shown to detect the thing when it is
+      # present, so introduce a difference on purpose and require it to be caught.
+      - name: Positive control - a tampered artifact must be caught
+        run: |
+          cp core/aethel_core.component.wasm /tmp/tampered.wasm
+          printf '\x01' | dd of=/tmp/tampered.wasm bs=1 seek=8 count=1 conv=notrunc status=none
+          if cmp -s /tmp/build1.component.wasm /tmp/tampered.wasm; then
+            echo "POSITIVE CONTROL FAILED: a modified artifact compared equal."
+            echo "The comparison above cannot detect a substituted component."
+            exit 1
+          fi
+          echo "positive control passed: the comparison detects a modified artifact"
+
+      - name: The built hash must match the one the package declares
+        run: |
+          built=$(sha256sum /tmp/build1.component.wasm | cut -d' ' -f1)
+          declared=$(cut -d' ' -f1 core/component.sha256)
+          if [ "$built" != "$declared" ]; then
+            echo "hash mismatch"
+            echo "  built:    $built"
+            echo "  declared: $declared (core/component.sha256)"
+            echo "Run scripts/sync-core.sh, which rewrites both."
+            exit 1
+          fi
+          echo "hash matches core/component.sha256: $built"
