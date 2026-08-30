@@ -2,7 +2,7 @@
 name = "aethel-sdk"
 version = "0.1.0"
 edition = "2021"
-description = "Ergonomic Rust SDK over aethel-core's post-quantum identity primitives — generate, sign, verify, project, disclose, recover"
+description = "Ergonomic Rust SDK over aethel-core's post-quantum identity primitives: generate, sign, verify, project, disclose, recover"
 authors = ["Ed Johnson"]
 license = "Apache-2.0"
 repository = "https://github.com/0x307/aethel-sdk"
@@ -11,9 +11,28 @@ categories = ["cryptography"]
 readme = "README.md"
 rust-version = "1.85"
 
+# The compiled component ships inside the package: it is embedded, not fetched
+# at install time. core/ must therefore be in the published crate, alongside the
+# hash and the pin that say which aethel-core revision produced it.
+include = [
+    "src/**/*",
+    "tests/**/*",
+    "core/**/*",
+    "scripts/sync-core.sh",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE",
+    "NOTICE",
+]
+
 [lib]
 name = "aethel_sdk"
 
 [dependencies]
+# A digest over the embedded artifact, to detect a substituted component. This
+# is an integrity check, not a cryptographic operation of the identity protocol:
+# no crypto is implemented in this crate, by charter. The primitives live in the
+# component.
+sha2 = "0.10"
 
 [dev-dependencies]

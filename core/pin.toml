@@ -1,0 +1,22 @@
+# The aethel-core revision this SDK embeds.
+#
+# Everything else under core/ is generated from this revision by
+# scripts/sync-core.sh. None of it is edited by hand.
+
+[core]
+repository = "https://github.com/0x307/aethel-core"
+rev = "20c02db2da6fa54cc047cca6c3c37bfc1fb5f57e"
+
+# The canonical build platform.
+#
+# The component hash is platform-specific. rustc embeds platform paths and links
+# a different std, so the same source built on Windows or macOS produces
+# different bytes. That is by design, and it is why this table exists: the hash
+# in component.sha256 is only meaningful alongside the versions that produced it.
+#
+# scripts/sync-core.sh reproduces this environment in a container, so the
+# canonical bytes can be rebuilt from any host.
+[toolchain]
+platform = "ubuntu-24.04, x86_64-unknown-linux-gnu"
+rust = "1.97.0"
+wasm-tools = "1.258.0"

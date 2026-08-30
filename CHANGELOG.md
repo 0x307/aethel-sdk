@@ -11,6 +11,31 @@ document for what counts as breaking inside `0.x`.
 
 ### Added
 
+- The `aethel:core` WebAssembly component is embedded in the crate, built from a pinned
+  `aethel-core` revision. The artifact, the SHA-256 the package declares for it, and the
+  revision and toolchain that produced it are checked in together under `core/`.
+- `scripts/sync-core.sh` re-vendors the WIT world, rebuilds the component, and rewrites the
+  declared hash from the pinned revision, in a container pinned to the canonical platform so
+  it can be run from any host. This is the documented command for moving to a newer
+  `aethel-core`.
+- A `component` CI job that rebuilds the artifact from the pinned revision, requires two
+  builds to be byte-identical, requires the result to equal the committed artifact and the
+  declared hash, and includes a positive control that a modified artifact is detected.
+- Tests over the embedded artifact: it is present, it is a component rather than a core
+  module, and its hash matches what the package declares. Each is paired with a positive
+  control feeding the same machinery an artifact known to be wrong.
+- README instructions for rebuilding the component and comparing it yourself, including why
+  the hash is platform-specific.
+
+### Notes
+
+- SAAP selective disclosure does not work in the embedded component. `saap-verify` denies
+  unconditionally because the corrected verifier needs a public key the current WIT signature
+  cannot carry. It fails closed rather than accepting forgeries. The README says so, and a
+  future method name on this crate should not be read as evidence it started working.
+- No crypto is implemented in this crate and none ever will be. The SHA-256 dependency is an
+  integrity check over the embedded bytes, not an operation of the identity protocol.
+
 - Initial scaffolding, no functionality yet. Repo structure, program artifacts (LICENSE,
   NOTICE, SECURITY.md, CONTRIBUTING.md, CODE_OF_CONDUCT.md, STABILITY.md), CI, and a
   placeholder crate that builds and tests cleanly with nothing to test. See

@@ -1,0 +1,14 @@
+# The embedded component is a binary artifact whose bytes are the whole point:
+# the package declares its SHA-256 and CI rebuilds it and compares. Any line
+# ending conversion would corrupt it and break the hash on checkout, which on a
+# Windows clone would look like a supply-chain failure rather than a git setting.
+*.wasm binary
+
+# Shell scripts must keep LF or they will not run in the container.
+*.sh text eol=lf
+
+# The declared hash is compared byte for byte in CI.
+component.sha256 text eol=lf
+
+# The vendored WIT is diffed against the pinned revision's copy in CI.
+*.wit text eol=lf
