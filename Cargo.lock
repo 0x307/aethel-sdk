@@ -14,9 +14,8 @@ dependencies = [
 [[package]]
 name = "aethel-core"
 version = "0.1.0"
-source = "git+https://github.com/0x307/aethel-core?rev=55ceb207c1233e8b11f281fe1c77a4048fbf5526#55ceb207c1233e8b11f281fe1c77a4048fbf5526"
+source = "git+https://github.com/0x307/aethel-core?rev=d2a5e83241fe09192718b235b1d946c18ac53592#d2a5e83241fe09192718b235b1d946c18ac53592"
 dependencies = [
- "bincode",
  "cc",
  "getrandom",
  "pqc-sig",
@@ -77,15 +76,6 @@ name = "base64ct"
 version = "1.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2af50177e190e07a26ab74f8b1efbfe2ef87da2116221318cb1c2e82baf7de06"
-
-[[package]]
-name = "bincode"
-version = "1.3.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b1f45e9417d87227c7a56d22e471c6206462cba514c7590c09aff4cf6d1ddcad"
-dependencies = [
- "serde",
-]
 
 [[package]]
 name = "bitflags"

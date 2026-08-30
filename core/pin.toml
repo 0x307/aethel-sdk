@@ -5,7 +5,7 @@
 
 [core]
 repository = "https://github.com/0x307/aethel-core"
-rev = "55ceb207c1233e8b11f281fe1c77a4048fbf5526"
+rev = "d2a5e83241fe09192718b235b1d946c18ac53592"
 
 # The canonical build platform.
 #
