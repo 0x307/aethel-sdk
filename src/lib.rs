@@ -2,8 +2,9 @@
 //!
 //! # What runs today
 //!
-//! The compiled `aethel:core` component is embedded in this crate and its
-//! integrity is checked against a hash the package declares. See [`artifact`].
+//! The compiled `aethel:core` component is embedded in this crate, its integrity
+//! is checked against a hash the package declares ([`artifact`]), and it loads
+//! and executes in an embedded runtime ([`component`]).
 //!
 //! That is the whole of what this crate does today. It is the L1 boundary from
 //! the initiative charter: one WebAssembly artifact, embedded by every language,
@@ -25,3 +26,6 @@
 //! it started working.
 
 pub mod artifact;
+
+#[cfg(not(target_arch = "wasm32"))]
+pub mod component;

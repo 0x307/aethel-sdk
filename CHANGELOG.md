@@ -35,6 +35,23 @@ document for what counts as breaking inside `0.x`.
   control feeding the same machinery an artifact known to be wrong.
 - README instructions for rebuilding the component and comparing it yourself, including why
   the hash is platform-specific.
+- `aethel_sdk::component::load()`, which checks the declared hash before the bytes reach the
+  runtime and instantiates the component through bindings generated from `core/wit/` at
+  compile time. Nothing is hand-written against the world.
+- An execution proof: the embedded component instantiates, its PLP projection agrees with
+  `aethel-core`'s native API coefficient for coefficient, prove and verify round-trip, HTSS
+  round-trips and reports `threshold-not-met` below threshold, and typed errors reach the
+  caller rather than sentinels. Positive controls cover the integrity gate and the comparison
+  itself.
+- A `wasm32` CI job, because `wasmtime` is a host runtime scoped away from
+  `wasm32-unknown-unknown` and that scoping needs a job rather than a comment.
+
+### Security
+
+- `wasmtime` is pinned at 48.0.1. The version originally copied from `aethel-core`, 34.0.2,
+  carries 17 open RustSec advisories including sandbox escapes and out-of-bounds writes. That
+  is a dev-dependency upstream and a runtime dependency here, so it was upgraded rather than
+  inherited. `cargo deny check` passes on advisories, bans, licenses and sources.
 
 ### Notes
 

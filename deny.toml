@@ -17,7 +17,13 @@ version = 2
 db-path = "~/.cargo/advisory-db"
 db-urls = ["https://github.com/rustsec/advisory-db"]
 yanked = "deny"
-ignore = []
+ignore = [
+    # RUSTSEC-2025-0141, bincode is unmaintained. It reaches this crate only through
+    # the aethel-core dev-dependency, which exists so the execution proof can compare
+    # the component against the native API. It is not in the dependency tree of anything
+    # this crate ships. Tracked upstream as 0X3-82; this entry comes out when that lands.
+    "RUSTSEC-2025-0141",
+]
 
 [licenses]
 version = 2
@@ -50,4 +56,10 @@ skip-tree = []
 unknown-registry = "deny"
 unknown-git = "deny"
 allow-registry = ["https://github.com/rust-lang/crates.io-index"]
-allow-git = []
+allow-git = [
+    # aethel-core, pinned by revision, as a dev-dependency only. The execution proof
+    # compares the embedded component against the native API at the exact revision the
+    # component was built from, and crates.io 0.1.0 predates the soundness fixes, so the
+    # comparison has to be against the revision rather than the release.
+    "https://github.com/0x307/aethel-core",
+]
