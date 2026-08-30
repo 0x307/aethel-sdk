@@ -46,6 +46,13 @@ document for what counts as breaking inside `0.x`.
 - A `wasm32` CI job, because `wasmtime` is a host runtime scoped away from
   `wasm32-unknown-unknown` and that scoping needs a job rather than a comment.
 
+### Security
+
+- `wasmtime` is pinned at 48.0.1. The version originally copied from `aethel-core`, 34.0.2,
+  carries 17 open RustSec advisories including sandbox escapes and out-of-bounds writes. That
+  is a dev-dependency upstream and a runtime dependency here, so it was upgraded rather than
+  inherited. `cargo deny check` passes on advisories, bans, licenses and sources.
+
 ### Notes
 
 - SAAP selective disclosure does not work in the embedded component. `saap-verify` denies
