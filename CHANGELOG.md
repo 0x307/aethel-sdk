@@ -46,6 +46,18 @@ document for what counts as breaking inside `0.x`.
 - A `wasm32` CI job, because `wasmtime` is a host runtime scoped away from
   `wasm32-unknown-unknown` and that scoping needs a job rather than a comment.
 
+- `Identity::generate()`, `Identity::from_entropy()`, `Identity::sign()` and `verify()`. The
+  signing key is derived inside the component from entropy this crate supplies and never enters
+  this process; only the public key crosses back. `Debug` on `Identity` prints a public key
+  fingerprint and says where the secret lives.
+- A quickstart in the README that generates an identity, signs, and verifies.
+- The embedded component moved to `aethel-core` `55ceb20`, which adds the `master-identity`
+  resource, `sign` and `verify-signature` to the world. Re-vendored with
+  `scripts/sync-core.sh`, which needed no source changes here.
+- `scripts/sync-core.sh` now works from Git Bash on Windows. It was passing container-absolute
+  paths through MSYS path conversion, so `/out/build.sh` reached Docker as a Windows path and
+  the run failed.
+
 ### Security
 
 - `wasmtime` is pinned at 48.0.1. The version originally copied from `aethel-core`, 34.0.2,

@@ -34,13 +34,17 @@ verbs on top of it:
   hash, refuses to instantiate an artifact that fails it, and returns bindings generated from
   the WIT world. Tests call it and compare the results against `aethel-core`'s native API at
   the same pinned revision, coefficient for coefficient.
+- **Generate an identity, sign a message, verify a signature.** `Identity::generate()`,
+  `Identity::sign()` and `verify()`. See the quickstart below. The signing key never exists in
+  this process: it is derived inside the component and stays there.
 - Nothing cryptographic is implemented in this crate, and nothing ever will be. Every
   cryptographic operation lives inside the component. That is the charter's L1 boundary: one
   artifact, embedded by every language, and adding a language never adds crypto.
 
 **Designed, not yet implemented:**
 
-- Generate / load / sign / verify / round-trip an identity
+- Persisting an identity and loading it again, on the same machine or another
+- Multikey encoding of the public key
 - Offline generation, proven by network isolation in CI
 - PLP contextual projection (`project_at(context)`)
 - SAAP selective disclosure over named attributes
@@ -53,8 +57,40 @@ See [ROADMAP.md](./ROADMAP.md) for the milestone sequence this is built in.
 
 ## Quickstart
 
-There isn't one yet. Nothing in this crate does anything a developer would call. This section
-will hold a copy-paste-tested quickstart once generate/sign/verify lands (see the roadmap).
+```toml
+[dependencies]
+aethel-sdk = "0.1"
+```
+
+```rust
+use aethel_sdk::{verify, Identity};
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Entropy comes from the OS. The signing key is derived from it inside the
+    // embedded component and never enters this process.
+    let mut identity = Identity::generate()?;
+
+    let message = b"the message that was actually signed";
+    let signature = identity.sign(message)?;
+
+    assert!(verify(identity.public_key(), message, &signature)?);
+
+    // A different message does not verify against that signature.
+    assert!(!verify(identity.public_key(), b"something else", &signature)?);
+
+    println!("public key: {} bytes", identity.public_key().len());
+    Ok(())
+}
+```
+
+No network access is involved, and nothing is fetched at install time: the component is
+compiled into the crate.
+
+### What you are trusting
+
+`verify` returns `Ok(false)` for a signature that does not verify and an error only for input
+it could not process. Those are different answers on purpose. Treating an error as "invalid"
+is the mistake that makes malformed input look like a failed check.
 
 ## The embedded component
 
