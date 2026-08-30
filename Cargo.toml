@@ -9,7 +9,11 @@ repository = "https://github.com/0x307/aethel-sdk"
 keywords = ["post-quantum", "identity", "sdk", "cryptography"]
 categories = ["cryptography"]
 readme = "README.md"
-rust-version = "1.85"
+# 1.95, not the 1.85 floor the rest of the initiative holds. wasmtime is a real
+# dependency here, not test tooling, and it requires 1.95. Embedding a
+# WebAssembly runtime is the reason, and declaring a floor this crate cannot
+# actually meet would be worse than declaring a higher one.
+rust-version = "1.95"
 
 # The compiled component ships inside the package: it is embedded, not fetched
 # at install time. core/ must therefore be in the published crate, alongside the
