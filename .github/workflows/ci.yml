@@ -14,6 +14,9 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo build --all-targets
       - run: cargo test
+      # The README quickstart is kept as an example and run here, so a broken
+      # quickstart fails CI rather than a reader's first five minutes.
+      - run: cargo run --example quickstart
 
   wasm32:
     name: wasm32 still builds

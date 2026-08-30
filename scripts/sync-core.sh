@@ -104,12 +104,23 @@ git rev-parse HEAD > /out/rev
 echo "built $(cat /out/component.sha256)"
 INNER
 
+# Git Bash on Windows rewrites container-absolute paths into Windows paths
+# before docker sees them, so `/out/build.sh` arrives as `C:/Program Files/...`
+# and the run fails. Disable that conversion, and convert the host side of the
+# mount explicitly, because that one really does need to be a Windows path.
+host_out="$out"
+if command -v cygpath >/dev/null 2>&1; then
+  host_out="$(cygpath -w "$out")"
+fi
+export MSYS_NO_PATHCONV=1
+export MSYS2_ARG_CONV_EXCL='*'
+
 docker run --rm \
   -e CORE_REPO="$core_repo" \
   -e CORE_REV="$rev" \
   -e RUST_VERSION="$rust_version" \
   -e WASM_TOOLS_VERSION="$wasm_tools_version" \
-  -v "$out:/out" \
+  -v "$host_out:/out" \
   ubuntu:24.04 bash /out/build.sh
 
 resolved="$(cat "$out/rev")"

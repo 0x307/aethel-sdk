@@ -29,3 +29,9 @@ pub mod artifact;
 
 #[cfg(not(target_arch = "wasm32"))]
 pub mod component;
+
+#[cfg(not(target_arch = "wasm32"))]
+pub mod identity;
+
+#[cfg(not(target_arch = "wasm32"))]
+pub use identity::{verify, Identity};

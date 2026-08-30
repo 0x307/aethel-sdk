@@ -39,10 +39,20 @@ name = "aethel_sdk"
 # component.
 sha2 = "0.10"
 
+# Wiping this crate's copy of the entropy passed into key generation. The secret
+# itself is never here, but the input that determines it briefly is.
+zeroize = { version = "1.7", default-features = false, features = ["alloc"] }
+
 # wasmtime is a HOST runtime: it needs mmap and cannot compile for
 # wasm32-unknown-unknown. Scoping it away from wasm32 keeps this crate buildable
 # for a browser target, which is what P6 will need. aethel-core learned this the
 # expensive way; the scoping is copied deliberately.
+# Reading the OS CSPRNG to seed key generation. Not a cryptographic operation
+# this crate implements, and it has to happen above L1: the component has no
+# WASI and therefore no ambient randomness.
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.getrandom]
+version = "0.2"
+
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 wasmtime = { version = "48.0.1", default-features = false, features = ["runtime", "component-model", "cranelift"] }
 
@@ -50,6 +60,6 @@ wasmtime = { version = "48.0.1", default-features = false, features = ["runtime"
 # the same pinned revision. It is a dev-dependency: this crate never calls
 # aethel-core directly at runtime, it calls the component.
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
-aethel-core = { version = "0.1", git = "https://github.com/0x307/aethel-core", rev = "20c02db2da6fa54cc047cca6c3c37bfc1fb5f57e" }
+aethel-core = { version = "0.1", git = "https://github.com/0x307/aethel-core", rev = "55ceb207c1233e8b11f281fe1c77a4048fbf5526" }
 
 [dev-dependencies]
