@@ -35,15 +35,21 @@ verbs on top of it:
   the WIT world. Tests call it and compare the results against `aethel-core`'s native API at
   the same pinned revision, coefficient for coefficient.
 - **Generate an identity, sign a message, verify a signature.** `Identity::generate()`,
-  `Identity::sign()` and `verify()`. See the quickstart below. The signing key never exists in
-  this process: it is derived inside the component and stays there.
+  `Identity::sign()` and `verify()`. The signing key never exists in this process: it is derived
+  inside the component and stays there.
+- **Persist an identity and load it again**, on the same machine or another.
+  `Identity::export_sealed()` and `Identity::open_sealed()`.
+- **Selective disclosure.** Issue a credential over named attributes, present it disclosing only
+  the ones you choose, and verify the presentation. `issue_credential()`, `present()` and
+  `verify_presentation()`.
 - Nothing cryptographic is implemented in this crate, and nothing ever will be. Every
   cryptographic operation lives inside the component. That is the charter's L1 boundary: one
   artifact, embedded by every language, and adding a language never adds crypto.
 
 **Designed, not yet implemented:**
 
-- Persisting an identity and loading it again, on the same machine or another
+- Predicate proofs over hidden attributes. See [What this cannot
+  do](#what-this-cannot-do-yet)
 - Multikey encoding of the public key
 - Offline generation, proven by network isolation in CI
 - PLP contextual projection (`project_at(context)`)
@@ -63,22 +69,40 @@ aethel-sdk = "0.1"
 ```
 
 ```rust
-use aethel_sdk::{verify, Identity};
+use aethel_sdk::{verify, verify_presentation, Identity};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Entropy comes from the OS. The signing key is derived from it inside the
     // embedded component and never enters this process.
     let mut identity = Identity::generate()?;
 
+    // Sign and verify.
     let message = b"the message that was actually signed";
     let signature = identity.sign(message)?;
-
     assert!(verify(identity.public_key(), message, &signature)?);
-
-    // A different message does not verify against that signature.
     assert!(!verify(identity.public_key(), b"something else", &signature)?);
 
-    println!("public key: {} bytes", identity.public_key().len());
+    // Persist it. `key` must be high-entropy key material, NOT a password.
+    let key = b"a sealing key of thirty-two byte";
+    let sealed = identity.export_sealed(key)?;
+    let mut identity = Identity::open_sealed(&sealed, key)?;
+
+    // Issue a credential over named attributes, and disclose only one of them.
+    let credential = identity.issue_credential(
+        b"the issuer's secret seed, 32 byte",
+        &[("tier", 3), ("date_of_birth", 19_900_101)],
+    )?;
+    let presentation = identity.present(&credential, b"checkout-session", &["tier"])?;
+
+    // The verifier learns the tier and nothing about the date of birth.
+    assert_eq!(presentation.disclosed().get("tier"), Some(&3));
+    assert!(presentation.disclosed().get("date_of_birth").is_none());
+    assert!(verify_presentation(
+        b"the issuer's secret seed, 32 byte",
+        &presentation,
+        b"checkout-session",
+    )?);
+
     Ok(())
 }
 ```
@@ -147,16 +171,23 @@ That re-vendors the WIT world, rebuilds the artifact, rewrites the declared hash
 the pin. Bindings are generated from `core/wit/` at compile time, so a reshaped world is
 picked up by the next `cargo build` with nothing hand-written to update.
 
-### SAAP disclosure does not work
+## What this cannot do yet
 
-`saap-verify` in the embedded component **denies unconditionally**. It returns `false` for
-every input, including honestly generated proofs. The corrected verifier needs a public key
-that the current WIT signature has no parameter to carry, so the operation fails closed rather
-than accepting forgeries. This is deliberate, it is documented upstream, and it is tracked as
-[0X3-79](https://github.com/0x307/aethel-core) in aethel-core's P3 work.
+**Predicate proofs over hidden attributes are not implemented.** You can disclose an attribute's
+value, or keep it hidden. You cannot prove a statement *about* a hidden value.
 
-Selective disclosure is therefore **not usable through this SDK today**, and no future method
-name on this crate should be read as evidence that it started working.
+So this works:
+
+> "I hold a credential from this issuer, and my `tier` is 3."
+
+and this does not:
+
+> "I hold a credential from this issuer, and my `age` is at least 21, and I am not telling you
+> my age."
+
+The second is the case most people want from selective disclosure, and it is the third of the
+protocol's three relations. It is scoped to a later phase, and until then the honest answer is
+that you disclose the value.
 
 ## Stability and support
 

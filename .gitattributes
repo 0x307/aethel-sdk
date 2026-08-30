@@ -12,3 +12,9 @@ component.sha256 text eol=lf
 
 # The vendored WIT is diffed against the pinned revision's copy in CI.
 *.wit text eol=lf
+
+# The sealing fixture is ciphertext. Git's text heuristic guessed "text" for it,
+# which means a checkout on a platform with different line endings would rewrite
+# bytes inside an encrypted blob and the cross-platform test would fail for a
+# reason that has nothing to do with sealing. Same hazard as the .wasm above.
+*.bin binary

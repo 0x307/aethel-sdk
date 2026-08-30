@@ -47,6 +47,14 @@ pub enum Error {
     Host(wasmtime::Error),
     /// The operating system would not supply entropy.
     Entropy(getrandom::Error),
+    /// A disclosure named an attribute the credential does not carry.
+    ///
+    /// An error rather than a silent no-op: disclosing nothing when the caller
+    /// asked to disclose something produces a perfectly valid proof of the
+    /// wrong statement.
+    UnknownAttribute(String),
+    /// More attributes than a credential has slots for.
+    TooManyAttributes(usize),
 }
 
 impl core::fmt::Display for Error {
@@ -56,6 +64,14 @@ impl core::fmt::Display for Error {
             Error::Component(e) => write!(f, "aethel-core rejected the call: {e:?}"),
             Error::Host(e) => write!(f, "the call into the component failed: {e}"),
             Error::Entropy(e) => write!(f, "could not source entropy: {e}"),
+            Error::UnknownAttribute(name) => write!(
+                f,
+                "this credential has no attribute named {name:?}, so it cannot be disclosed"
+            ),
+            Error::TooManyAttributes(n) => write!(
+                f,
+                "a credential carries at most 8 attributes, {n} were supplied"
+            ),
         }
     }
 }
@@ -85,9 +101,12 @@ impl From<wasmtime::Error> for Error {
 /// Created by [`Identity::generate`]. The secret key material lives inside the
 /// component instance this owns, never in this struct.
 pub struct Identity {
-    store: Store<()>,
-    bindings: AethelCore,
-    handle: ResourceAny,
+    // pub(crate) so the disclosure module can drive the same component instance.
+    // A credential handle is only meaningful inside the instance that issued it,
+    // so there is one owner of the store and everything else borrows it.
+    pub(crate) store: Store<()>,
+    pub(crate) bindings: AethelCore,
+    pub(crate) handle: ResourceAny,
     public_key: Vec<u8>,
 }
 
@@ -166,6 +185,63 @@ impl Identity {
             .master_identity()
             .call_sign(&mut self.store, self.handle, message)??;
         Ok(signature)
+    }
+}
+
+
+/// Minimum sealing key length. See [`Identity::export_sealed`].
+pub const MIN_SEAL_KEY_BYTES: usize = 32;
+
+impl Identity {
+    /// Seal this identity so it can be stored and loaded again.
+    ///
+    /// # This takes a key, not a password
+    ///
+    /// `key` must be at least [`MIN_SEAL_KEY_BYTES`] of **high-entropy** key
+    /// material: a key from an OS keychain, an HSM, or a random value you store.
+    /// The component stretches it with SHAKE-256, which is fast by design.
+    ///
+    /// **Do not pass a human-chosen password.** A password needs a deliberately
+    /// slow, memory-hard KDF (Argon2id or scrypt) to survive offline guessing,
+    /// and neither this crate nor the component provides one. A password here
+    /// produces a file that looks encrypted and falls to a wordlist. Run a real
+    /// password KDF first and pass its output.
+    ///
+    /// # What you get
+    ///
+    /// A byte string safe to write to disk, and exactly as sensitive as the
+    /// identity: whoever can open it holds the identity. Sealing is
+    /// deterministic, so the same identity under the same key produces identical
+    /// bytes and a stored file does not churn.
+    pub fn export_sealed(&mut self, key: &[u8]) -> Result<Vec<u8>, Error> {
+        let sealed = self
+            .bindings
+            .aethel_core_identity()
+            .master_identity()
+            .call_export_sealed(&mut self.store, self.handle, key)??;
+        Ok(sealed)
+    }
+
+    /// Open a sealed identity.
+    ///
+    /// Returns an error for a blob that is malformed, truncated, of an unknown
+    /// version, or sealed under a different key. Those are deliberately
+    /// indistinguishable: a decryption failure must not tell an attacker which
+    /// part they got wrong.
+    pub fn open_sealed(sealed: &[u8], key: &[u8]) -> Result<Self, Error> {
+        let (mut store, bindings) = component::load()?;
+
+        let handle = bindings
+            .aethel_core_identity()
+            .master_identity()
+            .call_import_sealed(&mut store, sealed, key)??;
+
+        let public_key = bindings
+            .aethel_core_identity()
+            .master_identity()
+            .call_public_key(&mut store, handle)?;
+
+        Ok(Self { store, bindings, handle, public_key })
     }
 }
 

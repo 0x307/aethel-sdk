@@ -58,6 +58,24 @@ document for what counts as breaking inside `0.x`.
   paths through MSYS path conversion, so `/out/build.sh` reached Docker as a Windows path and
   the run failed.
 
+- **Selective disclosure.** `Identity::issue_credential()`, `Identity::present()` and
+  `verify_presentation()`. Attributes are named end to end; no bitmask appears in the API, and a
+  name the credential does not carry is an error rather than a silent no-op.
+- **Sealed persistence.** `Identity::export_sealed()` and `Identity::open_sealed()`. The sealing
+  input is a key, not a password: it must be high-entropy key material, because the component
+  stretches it with SHAKE-256, which is fast by design.
+- A cross-platform sealing fixture. `tests/fixtures/sealed-identity.bin` is sealed on Windows
+  and opened by CI on Linux, so "written on one platform, loads on another" is tested rather
+  than assumed.
+- The component moved to `aethel-core` `a9b778c`, which adds the credential resource, sealed
+  export and import, and widens attribute encoding to the full `u64` range.
+
+### Changed
+
+- The README no longer says SAAP disclosure does not work, because it does. It now states the
+  limitation that remains: predicate proofs over hidden attributes are not implemented, so you
+  can disclose a value or hide it, but not prove a statement about a hidden one.
+
 ### Security
 
 - `wasmtime` is pinned at 48.0.1. The version originally copied from `aethel-core`, 34.0.2,
