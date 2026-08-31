@@ -82,8 +82,11 @@ wasm-tools validate /tmp/build1.wasm
 # that validates but is missing an export is a component that does not implement
 # the world it claims.
 wasm-tools component wit /tmp/build1.wasm > /tmp/embedded.wit
+# (saap-prove / saap-verify on the old `attestation` interface were removed in
+# aethel-core 0.1.5: superseded by saap-verify-presentation.)
 for op in plp-project-at-context plp-prove-identity plp-verify \
-          saap-prove saap-verify htss-split htss-reconstruct; do
+          saap-verify-presentation verify-signature \
+          htss-split htss-reconstruct; do
   grep -q "$op" /tmp/embedded.wit || { echo "MISSING from component: $op"; exit 1; }
 done
 
