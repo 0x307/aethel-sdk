@@ -7,7 +7,34 @@ adheres to the breaking-change and deprecation rules in
 [`STABILITY.md`](./STABILITY.md) rather than strict SemVer prior to `1.0.0` — see that
 document for what counts as breaking inside `0.x`.
 
-## [Unreleased]
+## [0.1.5] - 2026-08-31
+
+Version numbers track `aethel-core`, so the SDK and the component it embeds are
+identifiable as a pair. `0.1.0` was published before this changelog was split into
+released sections; everything below is what that release and this one contain together.
+
+### Changed
+
+- The embedded component moved to `aethel-core` 0.1.5
+  (`d8b53ef7d80cefb5748ea19e5a73afa2951b0660`), whose world no longer exports the
+  superseded `attestation` interface. Nothing in this crate's public API used it, so
+  there is no migration on this side: `Identity::issue_credential()`,
+  `Identity::present()` and `verify_presentation()` are unchanged and go through
+  `saap-verify-presentation`, as they already did.
+
+  | | |
+  |---|---|
+  | artifact | `core/aethel_core.component.wasm` |
+  | SHA-256 | `6a8ab7c07c0a100e2e3d3e0ec3362f0d6d93585be1e923bf8027613c86de0da9` |
+  | aethel-core revision | `d8b53ef7d80cefb5748ea19e5a73afa2951b0660` |
+  | canonical toolchain | ubuntu-24.04, Rust 1.97.0, wasm-tools 1.258.0 |
+
+### Fixed
+
+- `scripts/sync-core.sh` checked the rebuilt component for `saap-prove` and
+  `saap-verify`, which 0.1.5 removed. Re-vendoring onto any newer core would have failed
+  on that stale assertion rather than on anything real. It now checks the operations the
+  world actually declares.
 
 ### Added
 
@@ -85,10 +112,10 @@ document for what counts as breaking inside `0.x`.
 
 ### Notes
 
-- SAAP selective disclosure does not work in the embedded component. `saap-verify` denies
-  unconditionally because the corrected verifier needs a public key the current WIT signature
-  cannot carry. It fails closed rather than accepting forgeries. The README says so, and a
-  future method name on this crate should not be read as evidence it started working.
+- Predicate proofs over hidden attributes are deliberately not built. You can disclose an
+  attribute's value or hide it; you cannot prove a statement about a hidden one, so "age over
+  21 without revealing age" does not work yet. A method name on this crate should not be read
+  as evidence that it does.
 - No crypto is implemented in this crate and none ever will be. The SHA-256 dependency is an
   integrity check over the embedded bytes, not an operation of the identity protocol.
 

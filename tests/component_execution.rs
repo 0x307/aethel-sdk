@@ -201,38 +201,32 @@ fn htss_round_trips_and_reports_threshold_not_met() {
     }
 }
 
-/// `saap-verify` denies unconditionally in the pinned component, and the README
-/// says so. Pin it here too, so the day it starts returning `true` is a day
-/// someone notices rather than a day the SDK quietly starts claiming a working
-/// disclosure path.
+/// The superseded single-relation `attestation` interface is absent from the
+/// pinned component's world.
+///
+/// It used to export `saap-prove` / `saap-verify`, whose verify half denied
+/// unconditionally because it had no sound way to check a proof: the only
+/// public key that construction admitted was an exact linear image of the
+/// secret, never safe to publish. aethel-core 0.1.5 removed it in favour of
+/// `saap-verify-presentation`, anchored on the noisy projection `b_tau`, which
+/// this SDK exercises through `disclosure`.
+///
+/// Checked against the vendored WIT rather than the bindings, because a
+/// reappearing interface should fail here as an assertion rather than as a
+/// compile error in a test that no longer describes the world.
 #[test]
-fn saap_verify_denies_as_documented() {
-    let (mut store, bindings) = component::load().expect("load");
-    let attestation = bindings.aethel_core_attestation();
-
-    let secret_key = vec![0u8; 4 * 256 * 4];
-    let proof = attestation
-        .call_saap_prove(
-            &mut store,
-            b"credential-block",
-            component::exports::aethel::core::attestation::DisclosureAttributes::ATTRIBUTE0,
-            b"ctx",
-            &secret_key,
-            &[0x42u8; 32],
-        )
-        .expect("host call")
-        .expect("prove");
-
-    let verified = attestation
-        .call_saap_verify(&mut store, &proof, b"ctx")
-        .expect("host call")
-        .expect("verify returned err");
-
+fn the_pinned_component_has_no_attestation_interface() {
+    let wit = include_str!("../core/wit/aethel-core.wit");
     assert!(
-        !verified,
-        "saap-verify returned true. It is documented as failing closed until \
-         P3-11 (0X3-79) anchors it on b_tau. If it was wired up, the README's \
-         'SAAP disclosure does not work' section is now wrong and must change \
-         with this test"
+        !wit.contains("interface attestation"),
+        "the attestation interface reappeared in the vendored world. It was \
+         removed in aethel-core 0.1.5 because its verify half could never be \
+         sound; if it is genuinely back, that reasoning has to be revisited \
+         before this test is deleted"
+    );
+    assert!(
+        !wit.contains("export attestation"),
+        "attestation is exported from the vendored world without its interface \
+         definition being restored consistently"
     );
 }
