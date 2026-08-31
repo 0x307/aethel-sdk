@@ -6,24 +6,50 @@
 //! is checked against a hash the package declares ([`artifact`]), and it loads
 //! and executes in an embedded runtime ([`component`]).
 //!
-//! That is the whole of what this crate does today. It is the L1 boundary from
-//! the initiative charter: one WebAssembly artifact, embedded by every language,
-//! carrying every cryptographic operation. Nothing in this crate implements
-//! crypto, and nothing in this crate is allowed to.
+//! It is the L1 boundary from the initiative charter: one WebAssembly artifact,
+//! embedded by every language, carrying every cryptographic operation. Nothing
+//! in this crate implements crypto, and nothing in this crate is allowed to.
 //!
-//! # What is designed but not built
+//! On top of that, the following work end to end and are exercised by
+//! `examples/quickstart.rs`, which runs in CI:
 //!
-//! The ergonomic surface. Generating an identity, signing and verifying,
-//! projecting into a context, selectively disclosing attributes, and recovering
-//! through threshold shares are all designed and none of them is callable from
-//! this crate yet. `ROADMAP.md` has the sequence.
+//! - [`Identity::generate`] and [`Identity::from_entropy`], keys derived inside
+//!   the component and never present in this process
+//! - [`Identity::sign`] and [`verify`], ML-DSA-65
+//! - [`Identity::export_sealed`] and [`Identity::open_sealed`], so an identity
+//!   survives the process
+//! - [`Identity::issue_credential`], BDLOP issuance over named attributes
+//! - [`Identity::present`] and [`verify_presentation`], SAAP selective
+//!   disclosure: the verifier learns the disclosed attributes and nothing about
+//!   the hidden ones
 //!
-//! One caveat that outlives this crate's own progress: **SAAP selective
-//! disclosure does not work in the embedded component.** `saap-verify` denies
-//! unconditionally, because the corrected verifier needs a public key that the
-//! current WIT signature has no parameter to carry. This is deliberate and
-//! documented upstream. Do not read a future `disclose` method as evidence that
-//! it started working.
+//! # What is not on this surface
+//!
+//! Callable through the component but not wrapped here: standalone PLP
+//! projection and proof (`project-at-context`, `prove`, `plp-verify`), and HTSS
+//! threshold split and reconstruct. `ROADMAP.md` has the sequence.
+//!
+//! # What is not built anywhere
+//!
+//! - **Predicate proofs over hidden values.** "Age over 21 without revealing
+//!   age" does not work. Selective disclosure reveals the exact value of a
+//!   disclosed attribute; it cannot prove a bound on an undisclosed one. This is
+//!   RFC 5.6 relation 3, deliberately deferred, with three `identity-error`
+//!   variants reserved upstream for it.
+//! - **Revocation and key rotation.** There is no revocation list, no expiry, no
+//!   epoch on a credential or presentation, and no way to bind an identity to a
+//!   successor.
+//! - **Issuance orchestration.** `issue_credential` is one local call and needs
+//!   the issuer seed in this process. There is no two-party issuer/holder
+//!   protocol.
+//!
+//! # A correction
+//!
+//! Earlier versions of this comment said the ergonomic surface was "designed and
+//! none of them is callable from this crate yet", and that "SAAP selective
+//! disclosure does not work in the embedded component" because `saap-verify`
+//! denied unconditionally. Both were true once and neither is true now. The
+//! quickstart in this repository exercises exactly those paths and passes.
 
 pub mod artifact;
 

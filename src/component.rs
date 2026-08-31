@@ -7,8 +7,9 @@
 //! breaks here breaks at compile time rather than at runtime.
 //!
 //! This module loads and instantiates. It does not wrap the operations in
-//! anything ergonomic. Generate, sign and verify are P5-04, contextual
-//! projection is P5-06, and threshold recovery is P5-08.
+//! anything ergonomic: [`crate::identity`] and [`crate::disclosure`] do that.
+//! Contextual projection and threshold recovery are not yet wrapped anywhere in
+//! this crate, though both are callable through the component.
 
 use crate::artifact::{self, IntegrityError};
 use wasmtime::component::{Component, Linker};
