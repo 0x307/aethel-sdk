@@ -63,7 +63,13 @@ pub mod identity;
 pub mod disclosure;
 
 #[cfg(not(target_arch = "wasm32"))]
+pub mod verifier;
+
+#[cfg(not(target_arch = "wasm32"))]
 pub use disclosure::{verify_presentation, Credential, Presentation};
 
 #[cfg(not(target_arch = "wasm32"))]
 pub use identity::{verify, Identity};
+
+#[cfg(not(target_arch = "wasm32"))]
+pub use verifier::Verifier;
