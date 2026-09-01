@@ -6,14 +6,18 @@
 //! reintroduces exactly the correlatable identifier Aethel exists to avoid.
 //!
 //! The decomposition that matters: `verify_presentation` and `verify` both call
-//! `component::load()` internally, so every verification currently pays for a
-//! fresh wasmtime Engine, a fresh compile of the component, and a fresh Store.
-//! That is an SDK structure cost, not a cost of the cryptography. This measures
-//! both so the two can be told apart.
+//! `component::load()` internally, so every verification pays for a fresh
+//! `Store` and a fresh instantiation. Neither pays for a fresh wasmtime Engine
+//! or a fresh compile of the component any more — those are amortised across
+//! the process behind `component::shared()`, and holding a `Verifier` moves
+//! even that first-use compile to construction time. That is an SDK structure
+//! cost, not a cost of the cryptography. This measures both so the two can be
+//! told apart, and adds a case that holds one `Verifier` across N
+//! verifications alongside the existing free-function case.
 //!
 //!   cargo run --release --example bench_verify
 
-use aethel_sdk::{component, verify, verify_presentation, Identity};
+use aethel_sdk::{component, verify, verify_presentation, Identity, Verifier};
 use std::time::{Duration, Instant};
 
 const WARMUP: usize = 3;
@@ -78,6 +82,31 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let ok = verify(&public_key, message, &signature).expect("verify");
         assert!(ok);
     });
+
+    // ---- 2b. the same two operations through a held Verifier ---------------
+    // Same runtime, same per-call instantiate. Verifier::new() is what SAGP
+    // would call once at startup instead of paying the first-use compile on
+    // whichever request happens to land first.
+    println!("\n-- same operations through a Verifier constructed once --");
+    let verifier = Verifier::new()?;
+    let verifier_pres = bench("Verifier::verify_presentation()", 20, || {
+        let ok = verifier
+            .verify_presentation(issuer_seed, &presentation, context)
+            .expect("verify");
+        assert!(ok);
+    });
+    let verifier_sig = bench("Verifier::verify()", 20, || {
+        let ok = verifier.verify(&public_key, message, &signature).expect("verify");
+        assert!(ok);
+    });
+    println!(
+        "  per-verification cost should match the free-function case above: {:>10.3?} vs {:>10.3?} (presentation)",
+        e2e_pres, verifier_pres
+    );
+    println!(
+        "  per-verification cost should match the free-function case above: {:>10.3?} vs {:>10.3?} (signature)",
+        e2e_sig, verifier_sig
+    );
 
     // ---- 3. prover operations on a warm instance (crypto only) -------------
     // `Identity` owns its Store, so these do NOT reload the component. They are

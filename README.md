@@ -116,6 +116,35 @@ compiled into the crate.
 it could not process. Those are different answers on purpose. Treating an error as "invalid"
 is the mistake that makes malformed input look like a failed check.
 
+### Verifying more than occasionally
+
+The free functions above are the convenient path: a script, a test, a one-off verification.
+They already share one compiled runtime across the whole process, so calling `verify` or
+`verify_presentation` repeatedly does not recompile anything.
+
+What they do not give you is control over *when* that first compile happens. The first call
+through either path — whichever request lands first — pays a 230 ms cost. On a request path,
+that means some unlucky caller pays it.
+
+`Verifier` owns the same compiled runtime, but you construct it explicitly:
+
+```rust
+use aethel_sdk::Verifier;
+
+// Once, at startup:
+let verifier = Verifier::new()?;
+
+// Per request, as many times as you like:
+let ok = verifier.verify(public_key, message, &signature)?;
+let ok = verifier.verify_presentation(issuer_seed, &presentation, expected_context)?;
+```
+
+Per-verification cost is identical to the free functions — both paths instantiate the same
+compiled component per call. The only difference `Verifier` buys is moving the 230 ms compile
+to construction time instead of a caller's first request. SAGP, a gateway that verifies on the
+request path, holds one `Verifier` built at startup for exactly this reason. Anything verifying
+more than occasionally should do the same.
+
 ## The embedded component
 
 Everything cryptographic happens inside `aethel_core.component.wasm`, a WebAssembly Component

@@ -74,10 +74,10 @@ pub fn load_bytes(bytes: &[u8]) -> Result<(Store<()>, AethelCore), LoadError> {
 ///
 /// # Why this exists
 ///
-/// [`load`] compiles the component on every call. `Component::from_binary` runs
-/// Cranelift over the 1.8 MB artifact, which measured at **230 ms**, or 78% of
-/// the cost of a single `verify_presentation`. A verifier on a request path paid
-/// that per request.
+/// [`load`] used to compile the component on every call. `Component::from_binary`
+/// runs Cranelift over the 1.8 MB artifact, which measured at **230 ms**, or 78%
+/// of the cost of a single `verify_presentation`. A verifier on a request path
+/// paid that per request.
 ///
 /// Compilation is a property of the bytes, not of the call, so it belongs here.
 /// A `Runtime` compiles once; [`Runtime::instantiate`] then costs a fresh
