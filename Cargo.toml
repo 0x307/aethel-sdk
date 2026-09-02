@@ -60,6 +60,6 @@ wasmtime = { version = "48.0.1", default-features = false, features = ["runtime"
 # the same pinned revision. It is a dev-dependency: this crate never calls
 # aethel-core directly at runtime, it calls the component.
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
-aethel-core = { version = "0.1", git = "https://github.com/0x307/aethel-core", rev = "a9b778cd57c16392b4c97bdca9af85b88ec0d58e" }
+aethel-core = { version = "0.3", git = "https://github.com/0x307/aethel-core", rev = "d1eb72d4b48c3fe93b2f60c33d175b6364475458" }
 
 [dev-dependencies]

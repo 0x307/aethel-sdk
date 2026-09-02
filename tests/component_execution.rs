@@ -75,9 +75,9 @@ fn projection_through_the_component_matches_the_native_api() {
 
     assert_eq!(via_component.tau, native.tau.to_vec(), "tau differs");
     assert_eq!(
-        via_component.matrix_a,
-        native.matrix_a.coeffs().to_vec(),
-        "matrix_a differs between the embedded component and the native API"
+        via_component.salt,
+        native.salt.to_vec(),
+        "salt differs between the embedded component and the native API"
     );
     assert_eq!(
         via_component.public_b,
@@ -129,7 +129,7 @@ fn prove_and_verify_round_trip_inside_the_component() {
         .expect("projection");
 
     let proof = identity
-        .call_plp_prove_identity(&mut store, &secret, &tau)
+        .call_plp_prove_identity(&mut store, &secret, &tau, &randomness)
         .expect("host call")
         .expect("proof");
 
@@ -175,14 +175,14 @@ fn htss_round_trips_and_reports_threshold_not_met() {
     let secret = b"32-byte key material for HTSS !!".to_vec();
     assert_eq!(secret.len(), 32, "test setup");
 
-    let shares = sharing
+    let (shares, merkle_root) = sharing
         .call_htss_split(&mut store, &secret)
         .expect("host call")
         .expect("split");
     assert_eq!(shares.len(), 5, "expected a 3-of-5 split");
 
     let recovered = sharing
-        .call_htss_reconstruct(&mut store, &shares[..3])
+        .call_htss_reconstruct(&mut store, &shares[..3], &merkle_root)
         .expect("host call")
         .expect("reconstruct");
     assert_eq!(
@@ -192,7 +192,7 @@ fn htss_round_trips_and_reports_threshold_not_met() {
 
     // Two shares must be an error, not a wrong answer and not an empty vector.
     match sharing
-        .call_htss_reconstruct(&mut store, &shares[..2])
+        .call_htss_reconstruct(&mut store, &shares[..2], &merkle_root)
         .expect("host call")
     {
         Err(IdentityError::ThresholdNotMet) => {}

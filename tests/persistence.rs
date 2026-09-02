@@ -149,7 +149,7 @@ fn the_sealed_blob_does_not_contain_the_public_key() {
 /// Positive control for the check above.
 #[test]
 fn the_at_rest_leak_check_can_detect_a_leak() {
-    let mut identity = Identity::generate().expect("generate");
+    let identity = Identity::generate().expect("generate");
     let public_key = identity.public_key().to_vec();
 
     let mut leaky = vec![0u8; 8];
