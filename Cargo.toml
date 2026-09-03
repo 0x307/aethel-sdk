@@ -1,6 +1,6 @@
 [package]
 name = "aethel-sdk"
-version = "0.1.5"
+version = "0.3.1"
 edition = "2021"
 description = "Ergonomic Rust SDK over aethel-core's post-quantum identity primitives: generate, sign, verify, project, disclose, recover"
 authors = ["Ed Johnson"]
