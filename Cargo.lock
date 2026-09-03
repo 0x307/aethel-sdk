@@ -23,8 +23,8 @@ dependencies = [
 
 [[package]]
 name = "aethel-core"
-version = "0.3.1"
-source = "git+https://github.com/0x307/aethel-core?rev=d1eb72d4b48c3fe93b2f60c33d175b6364475458#d1eb72d4b48c3fe93b2f60c33d175b6364475458"
+version = "0.3.2"
+source = "git+https://github.com/0x307/aethel-core?rev=a09787d67a120f1d8a81b41755acf1e75c8f3289#a09787d67a120f1d8a81b41755acf1e75c8f3289"
 dependencies = [
  "cc",
  "chacha20poly1305",
@@ -37,7 +37,7 @@ dependencies = [
 
 [[package]]
 name = "aethel-sdk"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "aethel-core",
  "getrandom",
@@ -855,9 +855,9 @@ dependencies = [
 
 [[package]]
 name = "pqc-sig"
-version = "0.1.0"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "318569d682ab506bb5e11f60f307a339f7aaf1483bdef779c575520a8c340e98"
+checksum = "b169ac32cb9331c93185101e9ce7a5bce2a6ce0b2f5cd75f8ec1a05694794d31"
 dependencies = [
  "base64ct",
  "bs58",

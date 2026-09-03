@@ -7,42 +7,47 @@ adheres to the breaking-change and deprecation rules in
 [`STABILITY.md`](./STABILITY.md) rather than strict SemVer prior to `1.0.0` — see that
 document for what counts as breaking inside `0.x`.
 
-## [0.3.1] - 2026-09-03
+## [0.3.2] - 2026-09-03
 
 ### Security
 
 - **`aethel-sdk` 0.1.0 and 0.1.5 were yanked from crates.io.** Both embedded `aethel-core`
   at `d8b53ef7d80cefb5748ea19e5a73afa2951b0660`, the exact revision an external security
-  assessment ran against before its findings were fixed. This release embeds 0.3.1, which
+  assessment ran against before its findings were fixed. This release embeds 0.3.2, which
   contains those fixes, and is the first version anyone can newly adopt since the yank.
   Lockfiles that already resolved a yanked version are unaffected and keep building; there
   was simply nothing new to install until this release.
 
 ### Changed
 
-- The embedded component moved to `aethel-core` 0.3.1
-  (`d1eb72d4b48c3fe93b2f60c33d175b6364475458`), via `scripts/sync-core.sh`. The WIT world
-  reshaped in four ways, none of which touch this crate's public API: `ephemeral-projection`
-  drops `matrix-a` for a per-projection `salt` (`A` is now derived from `(tau, salt)` rather
-  than trusted off the wire), `htss-reconstruct` takes and checks a Merkle root before
-  interpolating, `identity-error` gains `invalid-share-set`, and the free-standing
-  `for_proving` projection helper is gone in favor of `project_at_context`. None of the four
-  are reachable through this SDK today — PLP contextual projection and HTSS recovery are
-  still unbuilt on the SDK surface (see [ROADMAP.md](./ROADMAP.md)) — so there is no
-  migration on this side.
+- The embedded component moved to `aethel-core` 0.3.2
+  (`a09787d67a120f1d8a81b41755acf1e75c8f3289`), via `scripts/sync-core.sh`. The WIT world
+  reshaped in four ways relative to the previously-embedded `d8b53ef`, none of which touch
+  this crate's public API: `ephemeral-projection` drops `matrix-a` for a per-projection
+  `salt` (`A` is now derived from `(tau, salt)` rather than trusted off the wire),
+  `htss-reconstruct` takes and checks a Merkle root before interpolating, `identity-error`
+  gains `invalid-share-set`, and the free-standing `for_proving` projection helper is gone in
+  favor of `project_at_context`. None of the four are reachable through this SDK today — PLP
+  contextual projection and HTSS recovery are still unbuilt on the SDK surface (see
+  [ROADMAP.md](./ROADMAP.md)) — so there is no migration on this side.
+
+  0.3.2 rather than 0.3.1: `aethel-core`'s own `pqc-sig` dependency was still pinned to a
+  version that crates.io had since yanked (CRA-8), which broke this crate's `cargo-deny`
+  advisories check and, it turned out, broke a from-scratch `cargo add aethel-core` for
+  anyone. Fixed upstream and re-verified before this re-pin.
 
   | | |
   |---|---|
   | artifact | `core/aethel_core.component.wasm` |
-  | SHA-256 | `4b062101f3f457644858304d99d343a9acd6363e2bf55b7dea3870015de29ef6` |
-  | aethel-core revision | `d1eb72d4b48c3fe93b2f60c33d175b6364475458` |
+  | SHA-256 | `375bf1f3c546fef84b45757417c39e22729b7df44063e8658bb6d0a973bc5218` |
+  | aethel-core revision | `a09787d67a120f1d8a81b41755acf1e75c8f3289` |
   | canonical toolchain | ubuntu-24.04, Rust 1.97.0, wasm-tools 1.258.0 |
 
 - The `aethel-core` dev-dependency moves off the yanked `^0.1` line to `^0.3`.
 
 ### Fixed
 
-- `tests/fixtures/sealed-identity.bin` regenerated against the 0.3.1 component; the fixture
+- `tests/fixtures/sealed-identity.bin` regenerated against the 0.3.2 component; the fixture
   sealed under `d8b53ef` did not open against it.
 - CI and `scripts/sync-core.sh` silence three lint categories (`unexpected_cfgs`,
   `dead_code`, `missing_docs`) that surface when building the pinned `aethel-core` revision
