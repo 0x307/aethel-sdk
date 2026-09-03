@@ -65,7 +65,7 @@ See [ROADMAP.md](./ROADMAP.md) for the milestone sequence this is built in.
 
 ```toml
 [dependencies]
-aethel-sdk = "0.1"
+aethel-sdk = "0.3"
 ```
 
 ```rust

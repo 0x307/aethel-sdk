@@ -4,7 +4,11 @@
 //! different machine and operating system from the one running the test. The
 //! blob it opens is produced by this example and committed.
 //!
-//! Run it only when the seal format changes on purpose:
+//! Run it only when the seal format changes on purpose. The fixture was
+//! regenerated for aethel-core 0.3.1: core commit ffdb8ba bumped the sealed
+//! identity format from v1 to v2 and binds the identity type into the nonce
+//! derivation and AEAD associated data, so the v1 fixture is deliberately
+//! rejected as an unknown format.
 //!
 //! ```bash
 //! cargo run --example seal_fixture

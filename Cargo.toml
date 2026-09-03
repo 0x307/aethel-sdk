@@ -1,6 +1,6 @@
 [package]
 name = "aethel-sdk"
-version = "0.1.5"
+version = "0.3.2"
 edition = "2021"
 description = "Ergonomic Rust SDK over aethel-core's post-quantum identity primitives: generate, sign, verify, project, disclose, recover"
 authors = ["Ed Johnson"]
@@ -60,6 +60,6 @@ wasmtime = { version = "48.0.1", default-features = false, features = ["runtime"
 # the same pinned revision. It is a dev-dependency: this crate never calls
 # aethel-core directly at runtime, it calls the component.
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
-aethel-core = { version = "0.1", git = "https://github.com/0x307/aethel-core", rev = "a9b778cd57c16392b4c97bdca9af85b88ec0d58e" }
+aethel-core = { version = "0.3", git = "https://github.com/0x307/aethel-core", rev = "a09787d67a120f1d8a81b41755acf1e75c8f3289" }
 
 [dev-dependencies]

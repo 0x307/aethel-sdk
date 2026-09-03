@@ -7,17 +7,19 @@ dropped as real implementation work surfaces things this list can't see yet. Wha
 the destination — an ergonomic Rust SDK over `aethel-core`'s post-quantum identity
 primitives — not the path.
 
-Nothing below is implemented yet. This repo currently contains scaffolding and program
-artifacts only (see the README's "what runs today vs. what is designed" section).
+Four of the milestones below are done, and this list said "nothing below is implemented yet"
+for long enough after that stopped being true that it was actively misleading. The four are
+marked **(shipped)**. The rest are still ahead of us — see the README's "what runs today vs.
+what is designed" section for the authoritative current split.
 
-## Embed the core
+## Embed the core (shipped)
 
 Bring in `aethel-core`'s compiled WASM component as this crate's L1 boundary — one `.wasm`
 shipped inside the package, not fetched at install time, with a reproducible build and a
 published hash so anyone can verify the binary matches the published source. Everything else
 in this SDK is built on top of that embedding.
 
-## Generate, sign, verify, round-trip
+## Generate, sign, verify, round-trip (shipped)
 
 The core identity lifecycle: generate an identity and persist it, load it back on a different
 platform, sign a message and verify the signature (rejecting both a tampered message and a
@@ -32,6 +34,9 @@ ergonomic layer may reintroduce variable-time comparison above the L1 boundary. 
 already does constant-time comparison internally; a plain `==` on a signature, MAC, or proof
 up here would quietly undo that.
 
+Multikey output and the offline-generation CI gate are not yet built; the rest of this
+milestone is.
+
 ## PLP contextual projection
 
 Contextual projection — `project_at(context)` — so the same identity produces projections
@@ -39,12 +44,17 @@ that are unlinkable across different contexts, verifiable by the caller, and rep
 the same identity and context. This is the part of the SDK that makes it more than another
 signing library, and it should read as roughly one line of caller code.
 
-## SAAP selective disclosure
+## SAAP selective disclosure (shipped)
 
 Selective disclosure on top of a projection: disclosure masks expressed as named attributes
 (never a raw bitmask), a proof that reveals exactly the named attributes and no others, proof
 verification that fails on tampering, and no way to recover an undisclosed attribute from the
 proof. Documented with a worked example — "prove one thing without revealing the rest."
+
+Shipped as disclosure over a credential's own named attributes
+(`issue_credential()`/`present()`/`verify_presentation()`); it does not sit on top of a PLP
+projection yet, since that milestone below isn't built. Predicate proofs over a hidden
+attribute are also not implemented — see the README's "what this cannot do" section.
 
 ## HTSS recovery
 
@@ -53,12 +63,16 @@ threshold recombination that reconstructs the identity, below-threshold shares t
 demonstrably fail to reconstruct, and shares that are documented as safe to serialize and
 transport. Losing one share above the threshold must not lose the identity.
 
-## Quickstart
+## Quickstart (shipped, minus `project`)
 
 A quickstart that works copy-pasted, end to end, in under ten minutes, on a machine that
 isn't the author's — covering generate, sign, verify, project, and disclose, with every code
 block actually run as part of producing it. This is treated as the single highest-leverage
 artifact for adoption: if it doesn't work pasted cold, nothing else here matters as much.
+
+The README's quickstart covers generate, sign, verify, persist, and disclose end to end.
+`project` is the one step it can't show yet, because PLP contextual projection isn't built
+on this SDK's surface — see the milestone above.
 
 ## Security model
 
