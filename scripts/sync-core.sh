@@ -69,6 +69,10 @@ export PATH="/tmp/wasm-tools-${WASM_TOOLS_VERSION}-x86_64-linux:$PATH"
 
 build_once() {
   rm -rf target/wasm32-unknown-unknown/release
+  # The pinned upstream revision emits these known library-only lints while
+  # compiling its component. They neither affect the generated Wasm nor signal
+  # a problem with the reproducible artifact this script validates.
+  RUSTFLAGS="${RUSTFLAGS:-} -Aunexpected_cfgs -Adead_code -Amissing_docs" \
   cargo build --release --target wasm32-unknown-unknown \
     --no-default-features --features component --locked
   wasm-tools component new \

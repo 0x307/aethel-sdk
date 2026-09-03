@@ -66,6 +66,9 @@ jobs:
       - name: Build the component
         working-directory: /home/runner/work/aethel-core/aethel-core
         run: |
+          # Match scripts/sync-core.sh: the pinned upstream source has known
+          # library-only lints that do not affect the emitted component.
+          RUSTFLAGS="${RUSTFLAGS:-} -Aunexpected_cfgs -Adead_code -Amissing_docs" \
           cargo build --release --target wasm32-unknown-unknown \
             --no-default-features --features component --locked
           wasm-tools component new \
@@ -89,6 +92,7 @@ jobs:
         working-directory: /home/runner/work/aethel-core/aethel-core
         run: |
           rm -rf target/wasm32-unknown-unknown/release
+          RUSTFLAGS="${RUSTFLAGS:-} -Aunexpected_cfgs -Adead_code -Amissing_docs" \
           cargo build --release --target wasm32-unknown-unknown \
             --no-default-features --features component --locked
           wasm-tools component new \
