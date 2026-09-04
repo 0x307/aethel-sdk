@@ -15,8 +15,8 @@ verbs on top of it:
 
 - **Generate** an identity and persist it
 - **Sign** a message and **verify** a signature
-- **Project** an identity into a caller-supplied context (PLP), so the same identity is
-  unlinkable across contexts
+- **Project** an identity into a caller-supplied context (PLP), with fresh
+  per-projection randomness so repeated projections are independent
 - **Disclose** selected attributes without revealing the rest (SAAP)
 - **Recover** an identity from threshold shares (HTSS)
 
@@ -42,6 +42,9 @@ verbs on top of it:
 - **Selective disclosure.** Issue a credential over named attributes, present it disclosing only
   the ones you choose, and verify the presentation. `issue_credential()`, `present()` and
   `verify_presentation()`.
+- **Contextual projection.** `Identity::project_at(context)` obtains fresh OS randomness for
+  each call and returns public context-bound material without exposing the identity's master
+  secret.
 - Nothing cryptographic is implemented in this crate, and nothing ever will be. Every
   cryptographic operation lives inside the component. That is the charter's L1 boundary: one
   artifact, embedded by every language, and adding a language never adds crypto.
@@ -52,7 +55,6 @@ verbs on top of it:
   do](#what-this-cannot-do-yet)
 - Multikey encoding of the public key
 - Offline generation, proven by network isolation in CI
-- PLP contextual projection (`project_at(context)`)
 - SAAP selective disclosure over named attributes
 - HTSS threshold recovery (split and recombine)
 - A ten-minute quickstart
@@ -109,6 +111,34 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 No network access is involved, and nothing is fetched at install time: the component is
 compiled into the crate.
+
+## Contextual projection
+
+Use [`Identity::project_at`] for the safe, ordinary path:
+
+```rust
+let projection = identity.project_at(b"checkout-session")?;
+println!("public projection salt: {:02x?}", projection.salt());
+```
+
+Every call obtains fresh secret OS randomness. Consequently, calls for the same identity and
+context produce different salts and public projection material; this prevents projections at one
+context from sharing the matrix needed by the historical averaging attack.
+
+`Identity::project_at_with_randomness(context, randomness)` exists only when reproducibility is
+needed, such as tests or an advanced protocol flow. Its randomness must be secret and freshly
+sampled for each distinct projection, must be at least 32 bytes, and must never be derived
+deterministically from context or identity data. Reusing it at the same context reproduces the
+same projection byte-for-byte, so it contributes no new independent sample. Prefer
+`project_at` unless the caller can meet and retain that obligation.
+
+The projection exposes only padded context, public salt, and public coefficients; the component
+keeps the master secret. That non-exposure is an API property, not a standalone proof of the
+underlying construction's security. Run the complete worked example with:
+
+```bash
+cargo run --example projection
+```
 
 ### What you are trusting
 

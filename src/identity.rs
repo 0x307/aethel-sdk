@@ -27,12 +27,70 @@
 
 use zeroize::Zeroize;
 
+use crate::component::exports::aethel::core::identity::EphemeralProjection;
 use crate::component::{self, aethel::core::types::IdentityError, AethelCore, LoadError};
 use wasmtime::component::ResourceAny;
 use wasmtime::Store;
 
 /// Minimum entropy accepted by the component's key derivation.
 pub const MIN_ENTROPY_BYTES: usize = 32;
+/// Minimum bytes of secret randomness required for one PLP projection.
+pub const MIN_PROJECTION_RANDOMNESS_BYTES: usize = 32;
+
+/// A public, context-bound PLP projection.
+///
+/// A projection contains only its padded context tag, public per-projection
+/// salt, and public projection coefficients. The identity's PLP master seed
+/// stays inside the component and is not represented here.
+pub struct Projection {
+    inner: EphemeralProjection,
+}
+
+impl Projection {
+    fn from_component(inner: EphemeralProjection) -> Self {
+        Self { inner }
+    }
+
+    /// The core's padded 32-byte context tag (τ).
+    pub fn tau(&self) -> &[u8] {
+        &self.inner.tau
+    }
+
+    /// The public 32-byte salt that selects this projection's context matrix.
+    pub fn salt(&self) -> &[u8] {
+        &self.inner.salt
+    }
+
+    /// The public projection coefficients (b_τ).
+    pub fn public_b(&self) -> &[u32] {
+        &self.inner.public_b
+    }
+
+    /// Canonical core projection encoding: padded τ, salt, then `public_b`
+    /// coefficients as little-endian `u32`s.
+    ///
+    /// This encoding intentionally excludes the context matrix: core derives
+    /// that matrix from τ and salt during verification.
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut bytes = Vec::with_capacity(64 + self.inner.public_b.len() * 4);
+        bytes.extend_from_slice(&self.inner.tau);
+        bytes.extend_from_slice(&self.inner.salt);
+        for coefficient in &self.inner.public_b {
+            bytes.extend_from_slice(&coefficient.to_le_bytes());
+        }
+        bytes
+    }
+}
+
+impl core::fmt::Debug for Projection {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("Projection")
+            .field("tau", &self.tau())
+            .field("salt", &self.salt())
+            .field("public_b_coefficients", &self.public_b().len())
+            .finish()
+    }
+}
 
 /// Anything that can go wrong generating or using an identity.
 #[derive(Debug)]
@@ -125,7 +183,10 @@ impl core::fmt::Debug for Identity {
             .collect();
         f.debug_struct("Identity")
             .field("public_key", &format_args!("{fingerprint}..."))
-            .field("secret", &format_args!("<held in the component, never here>"))
+            .field(
+                "secret",
+                &format_args!("<held in the component, never here>"),
+            )
             .finish()
     }
 }
@@ -166,7 +227,12 @@ impl Identity {
             .master_identity()
             .call_public_key(&mut store, handle)?;
 
-        Ok(Self { store, bindings, handle, public_key })
+        Ok(Self {
+            store,
+            bindings,
+            handle,
+            public_key,
+        })
     }
 
     /// The ML-DSA-65 public key. Safe to publish.
@@ -186,8 +252,46 @@ impl Identity {
             .call_sign(&mut self.store, self.handle, message)??;
         Ok(signature)
     }
-}
 
+    /// Project this identity into `context` with fresh OS-supplied randomness.
+    ///
+    /// This is the preferred API. Each call samples new secret randomness, so
+    /// even two projections at the same context have different salts and
+    /// independent context matrices. No master secret leaves the component.
+    pub fn project_at(&mut self, context: &[u8]) -> Result<Projection, Error> {
+        let mut randomness = [0u8; MIN_PROJECTION_RANDOMNESS_BYTES];
+        getrandom::getrandom(&mut randomness).map_err(Error::Entropy)?;
+        let projection = self.project_at_with_randomness(context, &randomness);
+        randomness.zeroize();
+        projection
+    }
+
+    /// Project this identity into `context` using caller-provided randomness.
+    ///
+    /// `randomness` must contain at least
+    /// [`MIN_PROJECTION_RANDOMNESS_BYTES`] bytes. In normal use it must be
+    /// freshly sampled secret entropy for every distinct projection; derive it
+    /// neither from the context nor from identity data. Core derives both the
+    /// public salt and the projection error from it.
+    ///
+    /// Reusing the same randomness at the same context reproduces the same
+    /// projection byte-for-byte. That reuse creates no new independent sample,
+    /// but using fresh randomness through [`Identity::project_at`] is the safe
+    /// default and prevents the shared-matrix averaging attack this construction
+    /// is designed to avoid.
+    pub fn project_at_with_randomness(
+        &mut self,
+        context: &[u8],
+        randomness: &[u8],
+    ) -> Result<Projection, Error> {
+        let projection = self
+            .bindings
+            .aethel_core_identity()
+            .master_identity()
+            .call_project_at_context(&mut self.store, self.handle, context, randomness)??;
+        Ok(Projection::from_component(projection))
+    }
+}
 
 /// Minimum sealing key length. See [`Identity::export_sealed`].
 pub const MIN_SEAL_KEY_BYTES: usize = 32;
@@ -241,7 +345,12 @@ impl Identity {
             .master_identity()
             .call_public_key(&mut store, handle)?;
 
-        Ok(Self { store, bindings, handle, public_key })
+        Ok(Self {
+            store,
+            bindings,
+            handle,
+            public_key,
+        })
     }
 }
 

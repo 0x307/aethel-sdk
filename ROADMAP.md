@@ -35,9 +35,10 @@ up here would quietly undo that.
 ## PLP contextual projection
 
 Contextual projection — `project_at(context)` — so the same identity produces projections
-that are unlinkable across different contexts, verifiable by the caller, and reproducible for
-the same identity and context. This is the part of the SDK that makes it more than another
-signing library, and it should read as roughly one line of caller code.
+that use fresh secret randomness and are independent both across contexts and across repeated
+calls at one context. Reproducibility is valid only when identity, context, and caller-supplied
+randomness are all the same. This is the part of the SDK that makes it more than another signing
+library, and it should read as roughly one line of caller code.
 
 ## SAAP selective disclosure
 
