@@ -127,7 +127,7 @@ context from sharing the matrix needed by the historical averaging attack.
 
 `Identity::project_at_with_randomness(context, randomness)` exists only when reproducibility is
 needed, such as tests or an advanced protocol flow. Its randomness must be secret and freshly
-sampled for each distinct projection, must be at least 32 bytes, and must never be derived
+sampled for each projection, must be at least 32 bytes, and must never be derived
 deterministically from context or identity data. Reusing it at the same context reproduces the
 same projection byte-for-byte, so it contributes no new independent sample. Prefer
 `project_at` unless the caller can meet and retain that obligation.
@@ -135,6 +135,12 @@ same projection byte-for-byte, so it contributes no new independent sample. Pref
 The projection exposes only padded context, public salt, and public coefficients; the component
 keeps the master secret. That non-exposure is an API property, not a standalone proof of the
 underlying construction's security. Run the complete worked example with:
+
+Under aethel-core's stated M-LWE security assumptions, the master secret is not derivable from
+any number of projections produced with fresh, secret randomness. Each projection's
+salt-derived context matrix prevents same-context projections from sharing the matrix required
+by the historical averaging attack. This is a cryptographic property of aethel-core's
+construction; SDK tests cover observable non-exposure proxies, not non-derivability.
 
 ```bash
 cargo run --example projection

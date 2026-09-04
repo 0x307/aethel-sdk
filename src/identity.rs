@@ -42,6 +42,14 @@ pub const MIN_PROJECTION_RANDOMNESS_BYTES: usize = 32;
 /// A projection contains only its padded context tag, public per-projection
 /// salt, and public projection coefficients. The identity's PLP master seed
 /// stays inside the component and is not represented here.
+///
+/// Under aethel-core's stated M-LWE security assumptions, the master secret is
+/// not derivable from any number of projections made with fresh, secret
+/// randomness. That randomness derives the public salt, which in turn derives
+/// this projection's context matrix; fresh salts keep same-context projections
+/// from sharing the matrix needed for the historical averaging attack. This is
+/// a cryptographic property of aethel-core's construction, not one SDK unit
+/// tests can prove.
 pub struct Projection {
     inner: EphemeralProjection,
 }
@@ -270,7 +278,7 @@ impl Identity {
     ///
     /// `randomness` must contain at least
     /// [`MIN_PROJECTION_RANDOMNESS_BYTES`] bytes. In normal use it must be
-    /// freshly sampled secret entropy for every distinct projection; derive it
+    /// freshly sampled secret entropy for every projection; derive it
     /// neither from the context nor from identity data. Core derives both the
     /// public salt and the projection error from it.
     ///
@@ -279,6 +287,13 @@ impl Identity {
     /// but using fresh randomness through [`Identity::project_at`] is the safe
     /// default and prevents the shared-matrix averaging attack this construction
     /// is designed to avoid.
+    ///
+    /// Under aethel-core's stated M-LWE security assumptions, fresh, secret
+    /// randomness makes the master secret non-derivable from any number of
+    /// projections. The salt it derives gives each projection its own context
+    /// matrix, including at a repeated context, so the historical averaging
+    /// attack has no shared matrix to use. This is a property of the underlying
+    /// cryptographic construction, not a claim SDK unit tests can establish.
     pub fn project_at_with_randomness(
         &mut self,
         context: &[u8],
