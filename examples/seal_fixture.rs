@@ -35,7 +35,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .map(|b| format!("{b:02x}"))
         .collect();
 
-    println!("wrote tests/fixtures/sealed-identity.bin ({} bytes)", sealed.len());
+    println!(
+        "wrote tests/fixtures/sealed-identity.bin ({} bytes)",
+        sealed.len()
+    );
     println!("public key sha-prefix: {}", &public_key_hex[..64]);
     Ok(())
 }

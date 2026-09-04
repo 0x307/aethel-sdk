@@ -70,7 +70,10 @@ impl core::fmt::Debug for Credential {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("Credential")
             .field("attributes", &self.schema)
-            .field("values", &format_args!("<held in the component, never here>"))
+            .field(
+                "values",
+                &format_args!("<held in the component, never here>"),
+            )
             .finish()
     }
 }
@@ -196,7 +199,10 @@ impl Identity {
                 &randomness,
             )??;
 
-        Ok(Credential { handle, schema: names })
+        Ok(Credential {
+            handle,
+            schema: names,
+        })
     }
 
     /// Present a credential at `context`, disclosing the named attributes.
@@ -244,7 +250,11 @@ impl Identity {
                 &projection_randomness,
             )??;
 
-        Ok(Presentation { inner, projection, schema: credential.schema.clone() })
+        Ok(Presentation {
+            inner,
+            projection,
+            schema: credential.schema.clone(),
+        })
     }
 }
 

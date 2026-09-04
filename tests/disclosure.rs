@@ -40,7 +40,11 @@ fn a_presentation_discloses_only_the_named_attributes() {
 
     let disclosed = presentation.disclosed();
     assert_eq!(disclosed.get("tier"), Some(&3));
-    assert_eq!(disclosed.len(), 1, "more than the named attribute was disclosed");
+    assert_eq!(
+        disclosed.len(),
+        1,
+        "more than the named attribute was disclosed"
+    );
     assert!(
         !disclosed.contains_key("date_of_birth"),
         "an attribute that was not named came out anyway"

@@ -39,7 +39,14 @@ fn bench<F: FnMut()>(label: &str, iters: usize, mut f: F) -> Duration {
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("\naethel-sdk verifier hot-path cost");
     println!("{}", "=".repeat(74));
-    println!("build: {}\n", if cfg!(debug_assertions) { "DEBUG (numbers are not meaningful, use --release)" } else { "release" });
+    println!(
+        "build: {}\n",
+        if cfg!(debug_assertions) {
+            "DEBUG (numbers are not meaningful, use --release)"
+        } else {
+            "release"
+        }
+    );
 
     // ---- setup, not measured ------------------------------------------------
     let issuer_seed = b"the issuer's secret seed, 32 byte";
@@ -96,7 +103,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         assert!(ok);
     });
     let verifier_sig = bench("Verifier::verify()", 20, || {
-        let ok = verifier.verify(&public_key, message, &signature).expect("verify");
+        let ok = verifier
+            .verify(&public_key, message, &signature)
+            .expect("verify");
         assert!(ok);
     });
     println!(
@@ -113,7 +122,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // a direct read on what the lattice work costs with instantiation amortised.
     println!("\n-- prover path on a warm instance (crypto only, no load) --");
     let warm_present = bench("present()              [crypto only]", 20, || {
-        let _ = identity.present(&credential, context, &["tier"]).expect("present");
+        let _ = identity
+            .present(&credential, context, &["tier"])
+            .expect("present");
     });
     let warm_sign = bench("sign()                 [crypto only]", 20, || {
         let _ = identity.sign(message).expect("sign");
