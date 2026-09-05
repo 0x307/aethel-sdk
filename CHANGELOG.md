@@ -22,6 +22,13 @@ document for what counts as breaking inside `0.x`.
   public coefficients, and `to_bytes()` over the three of them.
 - `MIN_PROJECTION_RANDOMNESS_BYTES`.
 - `examples/projection.rs`, the worked example the README points at.
+- `Identity::public_key_multibase()`, the public key as a W3C Multikey: base58btc over the
+  registered ML-DSA-65 multicodec code and the key bytes. `public_key()` returns raw bytes
+  that name no algorithm; a Multikey names it in-band, so a verifier that has never seen this
+  SDK can decode it. Checked in `tests/multikey.rs` against the third-party `multibase` crate
+  and against `pqc-sig`, two decoders that share no code with the encoder, plus a negative
+  control that a key announcing a different algorithm is refused.
+- `ML_DSA_65_MULTICODEC`.
 
 ## [0.3.2] - 2026-09-03
 

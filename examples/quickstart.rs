@@ -18,6 +18,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         &signature
     )?);
 
+    // The interoperable form of the public key: base58btc over the multicodec
+    // code for ML-DSA-65. This is what goes in a DID document.
+    let multikey = identity.public_key_multibase();
+    assert!(multikey.starts_with('z'));
+
     // Persist it. `key` must be high-entropy key material, NOT a password.
     let key = b"a sealing key of thirty-two byte";
     let sealed = identity.export_sealed(key)?;

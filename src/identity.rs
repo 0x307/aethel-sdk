@@ -37,6 +37,33 @@ pub const MIN_ENTROPY_BYTES: usize = 32;
 /// Minimum bytes of secret randomness required for one PLP projection.
 pub const MIN_PROJECTION_RANDOMNESS_BYTES: usize = 32;
 
+/// The multicodec code for an ML-DSA-65 public key, registered upstream.
+///
+/// Named rather than inlined because the byte sequence it encodes is what a
+/// decoder keys on: get it wrong and the output is still a well-formed
+/// base58btc string, just one that describes a different algorithm.
+pub const ML_DSA_65_MULTICODEC: u32 = 0x1211;
+
+/// Encode `public_key` as a W3C Multikey. See
+/// [`Identity::public_key_multibase`].
+fn multikey(public_key: &[u8]) -> String {
+    let mut prefixed = unsigned_varint(ML_DSA_65_MULTICODEC);
+    prefixed.extend_from_slice(public_key);
+    format!("z{}", bs58::encode(&prefixed).into_string())
+}
+
+/// Unsigned LEB128, the multiformats varint. Seven bits of payload per byte,
+/// low group first, high bit set on every byte but the last.
+fn unsigned_varint(mut value: u32) -> Vec<u8> {
+    let mut out = Vec::new();
+    while value >= 0x80 {
+        out.push((value as u8) | 0x80);
+        value >>= 7;
+    }
+    out.push(value as u8);
+    out
+}
+
 /// A public, context-bound PLP projection.
 ///
 /// A projection contains only its padded context tag, public per-projection
@@ -246,6 +273,23 @@ impl Identity {
     /// The ML-DSA-65 public key. Safe to publish.
     pub fn public_key(&self) -> &[u8] {
         &self.public_key
+    }
+
+    /// The public key as a [W3C Multikey][mk]: base58btc, `z`-prefixed, over
+    /// the multicodec code for ML-DSA-65 followed by the key bytes.
+    ///
+    /// This is the interoperable form. `public_key()` returns raw bytes, which
+    /// say nothing about which algorithm produced them; a Multikey names the
+    /// algorithm in-band, so a verifier that has never seen this SDK can decode
+    /// it and know what it is holding.
+    ///
+    /// The code is `0x1211`, which is registered upstream in the
+    /// [multicodec table][mc] for ML-DSA-65, so nothing here is private-use.
+    ///
+    /// [mk]: https://www.w3.org/TR/controller-document/#multikey
+    /// [mc]: https://github.com/multiformats/multicodec
+    pub fn public_key_multibase(&self) -> String {
+        multikey(&self.public_key)
     }
 
     /// Sign a message.

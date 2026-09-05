@@ -45,6 +45,9 @@ verbs on top of it:
 - **Contextual projection.** `Identity::project_at(context)` obtains fresh OS randomness for
   each call and returns public context-bound material without exposing the identity's master
   secret.
+- **Interoperable public keys.** `Identity::public_key_multibase()` emits a W3C Multikey, so a
+  verifier that has never seen this SDK can decode the key and know which algorithm produced
+  it.
 - Nothing cryptographic is implemented in this crate, and nothing ever will be. Every
   cryptographic operation lives inside the component. That is the charter's L1 boundary: one
   artifact, embedded by every language, and adding a language never adds crypto.
@@ -53,7 +56,6 @@ verbs on top of it:
 
 - Predicate proofs over hidden attributes. See [What this cannot
   do](#what-this-cannot-do-yet)
-- Multikey encoding of the public key
 - Offline generation, proven by network isolation in CI
 - SAAP selective disclosure over named attributes
 - HTSS threshold recovery (split and recombine)
@@ -83,6 +85,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let signature = identity.sign(message)?;
     assert!(verify(identity.public_key(), message, &signature)?);
     assert!(!verify(identity.public_key(), b"something else", &signature)?);
+
+    // The interoperable form of the public key: base58btc over the multicodec
+    // code for ML-DSA-65. This is what goes in a DID document.
+    let multikey = identity.public_key_multibase();
+    assert!(multikey.starts_with('z'));
 
     // Persist it. `key` must be high-entropy key material, NOT a password.
     let key = b"a sealing key of thirty-two byte";

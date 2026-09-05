@@ -34,8 +34,9 @@ ergonomic layer may reintroduce variable-time comparison above the L1 boundary. 
 already does constant-time comparison internally; a plain `==` on a signature, MAC, or proof
 up here would quietly undo that.
 
-Multikey output and the offline-generation CI gate are not yet built; the rest of this
-milestone is.
+The offline-generation CI gate is not yet built; the rest of this milestone is. Multikey
+output is `Identity::public_key_multibase()`, checked in `tests/multikey.rs` against two
+decoders that share no code with the encoder.
 
 ## PLP contextual projection (shipped)
 

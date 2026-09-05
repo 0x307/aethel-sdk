@@ -18,6 +18,7 @@
 //! - [`Identity::sign`] and [`verify`], ML-DSA-65
 //! - [`Identity::export_sealed`] and [`Identity::open_sealed`], so an identity
 //!   survives the process
+//! - [`Identity::public_key_multibase`], the public key as a W3C Multikey
 //! - [`Identity::project_at`], fresh, context-bound PLP projections
 //! - [`Identity::issue_credential`], BDLOP issuance over named attributes
 //! - [`Identity::present`] and [`verify_presentation`], SAAP selective
