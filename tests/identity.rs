@@ -7,10 +7,11 @@
 
 #![cfg(not(target_arch = "wasm32"))]
 
-use aethel_sdk::{identity::Error, verify, Identity};
+use aethel_sdk::{identity::Error, verify, Identity, RecoveryShareSet};
 
 const ENTROPY: &[u8; 32] = b"deterministic entropy for tests!";
 const OTHER_ENTROPY: &[u8; 32] = b"a completely different entropy!!";
+const RECOVERY_KEY: &[u8] = b"a recovery sealing key, 32 bytes";
 
 #[test]
 fn generate_produces_an_identity_with_a_public_key() {
@@ -180,4 +181,93 @@ fn identities_are_isolated_from_each_other() {
     assert!(verify(a.public_key(), message, &sig_a).expect("verify"));
     assert!(verify(b.public_key(), message, &sig_b).expect("verify"));
     assert!(!verify(a.public_key(), message, &sig_b).expect("verify"));
+}
+
+/// Recovery protects the sealed representation of the real component-held
+/// identity, not a stand-in scalar. A restored identity must therefore retain
+/// the original public key and be able to produce a valid signature.
+#[test]
+fn recovery_uses_real_identity_material_and_recovers_identity() {
+    let mut original = Identity::from_entropy(ENTROPY).expect("generate");
+    let public_key = original.public_key().to_vec();
+    let recovery = original
+        .split_for_recovery(RECOVERY_KEY)
+        .expect("split identity for recovery");
+
+    let mut restored =
+        Identity::recover_from_shares(&recovery.shares()[..3], RECOVERY_KEY).expect("recover");
+    assert_eq!(restored.public_key(), public_key);
+    let message = b"signature from recovered identity";
+    let signature = restored.sign(message).expect("sign");
+    assert!(verify(&public_key, message, &signature).expect("verify"));
+}
+
+#[test]
+fn threshold_shares_reconstruct_identity() {
+    let mut original = Identity::from_entropy(ENTROPY).expect("generate");
+    let public_key = original.public_key().to_vec();
+    let recovery = original
+        .split_for_recovery(RECOVERY_KEY)
+        .expect("split identity for recovery");
+
+    let restored =
+        Identity::recover_from_shares(&recovery.shares()[..3], RECOVERY_KEY).expect("recover");
+    assert_eq!(restored.public_key(), public_key);
+}
+
+/// With the root and both supplied shares held fixed, reducing the number of
+/// shares from the threshold to two must surface core's typed threshold error.
+#[test]
+fn below_threshold_shares_fail() {
+    let mut original = Identity::from_entropy(ENTROPY).expect("generate");
+    let recovery = original
+        .split_for_recovery(RECOVERY_KEY)
+        .expect("split identity for recovery");
+
+    match Identity::recover_from_shares(&recovery.shares()[..2], RECOVERY_KEY) {
+        Err(Error::Component(
+            aethel_sdk::component::aethel::core::types::IdentityError::ThresholdNotMet,
+        )) => {}
+        Err(other) => panic!("expected threshold-not-met, got {other:?}"),
+        Ok(_) => panic!("two shares reconstructed an identity"),
+    }
+}
+
+#[test]
+fn recovery_share_set_serialization_round_trips() {
+    let mut original = Identity::from_entropy(ENTROPY).expect("generate");
+    let public_key = original.public_key().to_vec();
+    let recovery = original
+        .split_for_recovery(RECOVERY_KEY)
+        .expect("split identity for recovery");
+
+    let encoded = recovery.to_bytes();
+    let decoded = RecoveryShareSet::from_bytes(&encoded).expect("decode recovery material");
+    let restored =
+        Identity::recover_from_shares(&decoded.shares()[..3], RECOVERY_KEY).expect("recover");
+    assert_eq!(restored.public_key(), public_key);
+}
+
+#[test]
+fn losing_one_share_above_threshold_still_recovers() {
+    let mut original = Identity::from_entropy(ENTROPY).expect("generate");
+    let public_key = original.public_key().to_vec();
+    let recovery = original
+        .split_for_recovery(RECOVERY_KEY)
+        .expect("split identity for recovery");
+    let shares = recovery.shares();
+
+    let first = Identity::recover_from_shares(
+        &[shares[0].clone(), shares[1].clone(), shares[2].clone()],
+        RECOVERY_KEY,
+    )
+    .expect("recover from initial threshold subset");
+    let after_loss = Identity::recover_from_shares(
+        &[shares[0].clone(), shares[1].clone(), shares[3].clone()],
+        RECOVERY_KEY,
+    )
+    .expect("recover after third share unavailable");
+
+    assert_eq!(first.public_key(), public_key);
+    assert_eq!(after_loss.public_key(), public_key);
 }

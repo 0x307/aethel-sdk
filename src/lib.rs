@@ -18,6 +18,8 @@
 //! - [`Identity::sign`] and [`verify`], ML-DSA-65
 //! - [`Identity::export_sealed`] and [`Identity::open_sealed`], so an identity
 //!   survives the process
+//! - [`Identity::split_for_recovery`] and [`Identity::recover_from_shares`],
+//!   authenticated 3-of-5 recovery over the canonical sealed identity
 //! - [`Identity::project_at`], fresh, context-bound PLP projections
 //! - [`Identity::issue_credential`], BDLOP issuance over named attributes
 //! - [`Identity::present`] and [`verify_presentation`], SAAP selective
@@ -27,7 +29,7 @@
 //! # What is not on this surface
 //!
 //! Callable through the component but not wrapped here: standalone PLP proof
-//! (`prove`, `plp-verify`) and HTSS threshold split and reconstruct.
+//! (`prove`, `plp-verify`).
 //! `ROADMAP.md` has the sequence.
 //!
 //! # What is not built anywhere
@@ -70,7 +72,7 @@ pub mod verifier;
 pub use disclosure::{verify_presentation, Credential, Presentation};
 
 #[cfg(not(target_arch = "wasm32"))]
-pub use identity::{verify, Identity, Projection};
+pub use identity::{verify, Identity, Projection, RecoveryShare, RecoveryShareSet};
 
 #[cfg(not(target_arch = "wasm32"))]
 pub use verifier::Verifier;

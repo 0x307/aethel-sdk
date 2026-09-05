@@ -28,7 +28,10 @@
 use zeroize::Zeroize;
 
 use crate::component::exports::aethel::core::identity::EphemeralProjection;
-use crate::component::{self, aethel::core::types::IdentityError, AethelCore, LoadError};
+use crate::component::{
+    self, aethel::core::types::IdentityError, exports::aethel::core::secret_sharing::HtssShare,
+    AethelCore, LoadError,
+};
 use wasmtime::component::ResourceAny;
 use wasmtime::Store;
 
@@ -121,6 +124,10 @@ pub enum Error {
     UnknownAttribute(String),
     /// More attributes than a credential has slots for.
     TooManyAttributes(usize),
+    /// Recovery material was not a complete, well-formed transport encoding.
+    ///
+    /// This does not reveal which sensitive share bytes were malformed.
+    InvalidRecoveryMaterial(&'static str),
 }
 
 impl core::fmt::Display for Error {
@@ -138,6 +145,9 @@ impl core::fmt::Display for Error {
                 f,
                 "a credential carries at most 8 attributes, {n} were supplied"
             ),
+            Error::InvalidRecoveryMaterial(reason) => {
+                write!(f, "invalid recovery material: {reason}")
+            }
         }
     }
 }
@@ -174,6 +184,193 @@ pub struct Identity {
     pub(crate) bindings: AethelCore,
     pub(crate) handle: ResourceAny,
     public_key: Vec<u8>,
+}
+
+/// One authenticated HTSS recovery share.
+///
+/// A share includes the 32-byte Merkle root that authenticates its set, so it
+/// remains recoverable after being serialized and transported independently.
+/// It is recovery-sensitive material: transport encryption and access control
+/// are still required. Authentication is not confidentiality.
+pub struct RecoveryShare {
+    index: u8,
+    value: Vec<u8>,
+    path: Vec<u8>,
+    merkle_root: [u8; 32],
+}
+
+impl RecoveryShare {
+    /// Encode this share and its required Merkle root for transport or storage.
+    ///
+    /// The bytes contain recovery-sensitive material. They are portable, not
+    /// safe to publish.
+    pub fn to_bytes(&self) -> Vec<u8> {
+        RecoveryShareSet {
+            shares: vec![self.clone()],
+            merkle_root: self.merkle_root,
+        }
+        .to_bytes()
+    }
+
+    /// Decode one share previously produced by [`RecoveryShare::to_bytes`].
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, Error> {
+        let mut set = RecoveryShareSet::from_bytes(bytes)?;
+        if set.shares.len() != 1 {
+            return Err(Error::InvalidRecoveryMaterial(
+                "a single-share encoding must contain exactly one share",
+            ));
+        }
+        Ok(set.shares.remove(0))
+    }
+}
+
+impl Clone for RecoveryShare {
+    fn clone(&self) -> Self {
+        Self {
+            index: self.index,
+            value: self.value.clone(),
+            path: self.path.clone(),
+            merkle_root: self.merkle_root,
+        }
+    }
+}
+
+impl core::fmt::Debug for RecoveryShare {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("RecoveryShare")
+            .field("index", &self.index)
+            .field("value", &"<redacted>")
+            .field("path", &"<redacted>")
+            .field("merkle_root", &"<redacted>")
+            .finish()
+    }
+}
+
+/// A 3-of-5 HTSS recovery set for an identity.
+///
+/// It keeps the shares and their Merkle root together for serialization. The
+/// root is required for authenticated reconstruction, but should be retained
+/// independently from the shares when possible: a store that can replace both
+/// can substitute an entire recovery set.
+pub struct RecoveryShareSet {
+    shares: Vec<RecoveryShare>,
+    merkle_root: [u8; 32],
+}
+
+impl RecoveryShareSet {
+    /// The five authenticated shares. Distribute each share separately.
+    pub fn shares(&self) -> &[RecoveryShare] {
+        &self.shares
+    }
+
+    /// The 32-byte Merkle root used to authenticate this share set.
+    pub fn merkle_root(&self) -> &[u8; 32] {
+        &self.merkle_root
+    }
+
+    /// Encode all shares and their required Merkle root in a versioned binary
+    /// format suitable for transport or storage.
+    ///
+    /// These bytes are recovery-sensitive material and must be protected like
+    /// the identity itself. Transport-safe does not mean safe to publish.
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut bytes = Vec::with_capacity(
+            4 + 1
+                + 1
+                + 32
+                + self
+                    .shares
+                    .iter()
+                    .map(|share| 1 + 4 + share.value.len() + 4 + share.path.len())
+                    .sum::<usize>(),
+        );
+        bytes.extend_from_slice(b"ATHR");
+        bytes.push(1);
+        bytes.push(self.shares.len() as u8);
+        bytes.extend_from_slice(&self.merkle_root);
+        for share in &self.shares {
+            bytes.push(share.index);
+            write_recovery_bytes(&mut bytes, &share.value);
+            write_recovery_bytes(&mut bytes, &share.path);
+        }
+        bytes
+    }
+
+    /// Decode recovery material produced by [`RecoveryShareSet::to_bytes`].
+    ///
+    /// The decoded set preserves the association between every share and its
+    /// Merkle root; reconstruction still authenticates it in aethel-core.
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, Error> {
+        const HEADER_BYTES: usize = 4 + 1 + 1 + 32;
+        if bytes.len() < HEADER_BYTES || &bytes[..4] != b"ATHR" || bytes[4] != 1 {
+            return Err(Error::InvalidRecoveryMaterial("unknown encoding"));
+        }
+        let count = bytes[5] as usize;
+        if count == 0 || count > 5 {
+            return Err(Error::InvalidRecoveryMaterial("invalid share count"));
+        }
+        let mut merkle_root = [0u8; 32];
+        merkle_root.copy_from_slice(&bytes[6..HEADER_BYTES]);
+        let mut offset = HEADER_BYTES;
+        let mut shares = Vec::with_capacity(count);
+        for _ in 0..count {
+            let index = *bytes
+                .get(offset)
+                .ok_or(Error::InvalidRecoveryMaterial("truncated share index"))?;
+            offset += 1;
+            let value = read_recovery_bytes(bytes, &mut offset)?;
+            let path = read_recovery_bytes(bytes, &mut offset)?;
+            shares.push(RecoveryShare {
+                index,
+                value,
+                path,
+                merkle_root,
+            });
+        }
+        if offset != bytes.len() {
+            return Err(Error::InvalidRecoveryMaterial("trailing bytes"));
+        }
+        Ok(Self {
+            shares,
+            merkle_root,
+        })
+    }
+}
+
+impl core::fmt::Debug for RecoveryShareSet {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("RecoveryShareSet")
+            .field("share_count", &self.shares.len())
+            .field("shares", &"<redacted>")
+            .field("merkle_root", &"<redacted>")
+            .finish()
+    }
+}
+
+fn write_recovery_bytes(output: &mut Vec<u8>, value: &[u8]) {
+    output.extend_from_slice(&(value.len() as u32).to_le_bytes());
+    output.extend_from_slice(value);
+}
+
+fn read_recovery_bytes(input: &[u8], offset: &mut usize) -> Result<Vec<u8>, Error> {
+    let length_bytes = input
+        .get(*offset..*offset + 4)
+        .ok_or(Error::InvalidRecoveryMaterial("truncated length"))?;
+    let length = u32::from_le_bytes(
+        length_bytes
+            .try_into()
+            .map_err(|_| Error::InvalidRecoveryMaterial("invalid length"))?,
+    ) as usize;
+    *offset += 4;
+    let end = offset
+        .checked_add(length)
+        .ok_or(Error::InvalidRecoveryMaterial("invalid share length"))?;
+    let value = input
+        .get(*offset..end)
+        .ok_or(Error::InvalidRecoveryMaterial("truncated share data"))?
+        .to_vec();
+    *offset = end;
+    Ok(value)
 }
 
 /// Prints the public key fingerprint and nothing else.
@@ -259,6 +456,76 @@ impl Identity {
             .master_identity()
             .call_sign(&mut self.store, self.handle, message)??;
         Ok(signature)
+    }
+
+    /// Split this identity's canonical sealed representation into authenticated
+    /// 3-of-5 recovery shares.
+    ///
+    /// The current embedded aethel-core HTSS policy is fixed at 3-of-5. The
+    /// raw signing key and PLP master seed never leave the component; instead,
+    /// HTSS protects the sealed identity blob that [`Identity::open_sealed`]
+    /// canonically imports. `sealing_key` must meet the same requirements as
+    /// [`Identity::export_sealed`], and is required again during recovery.
+    pub fn split_for_recovery(&mut self, sealing_key: &[u8]) -> Result<RecoveryShareSet, Error> {
+        let mut sealed = self.export_sealed(sealing_key)?;
+        let split = {
+            let sharing = self.bindings.aethel_core_secret_sharing();
+            sharing.call_htss_split(&mut self.store, &sealed)?
+        };
+        sealed.zeroize();
+        let (shares, merkle_root) = split?;
+        let merkle_root: [u8; 32] = merkle_root
+            .try_into()
+            .map_err(|_| Error::InvalidRecoveryMaterial("component returned non-32-byte root"))?;
+        let shares = shares
+            .into_iter()
+            .map(|share| RecoveryShare {
+                index: share.index,
+                value: share.value,
+                path: share.path,
+                merkle_root,
+            })
+            .collect();
+        Ok(RecoveryShareSet {
+            shares,
+            merkle_root,
+        })
+    }
+
+    /// Recover an identity from any three valid shares of one recovery set.
+    ///
+    /// Each [`RecoveryShare`] carries its set's Merkle root. The component
+    /// verifies inclusion paths against that root before reconstructing the
+    /// sealed identity blob, which is then restored through the canonical
+    /// [`Identity::open_sealed`] path.
+    pub fn recover_from_shares(
+        shares: &[RecoveryShare],
+        sealing_key: &[u8],
+    ) -> Result<Self, Error> {
+        let root = shares
+            .first()
+            .ok_or(Error::InvalidRecoveryMaterial("no shares supplied"))?
+            .merkle_root;
+        if shares.iter().any(|share| share.merkle_root != root) {
+            return Err(Error::InvalidRecoveryMaterial(
+                "shares belong to different recovery sets",
+            ));
+        }
+        let component_shares: Vec<HtssShare> = shares
+            .iter()
+            .map(|share| HtssShare {
+                index: share.index,
+                value: share.value.clone(),
+                path: share.path.clone(),
+            })
+            .collect();
+        let (mut store, bindings) = component::load()?;
+        let mut sealed = bindings
+            .aethel_core_secret_sharing()
+            .call_htss_reconstruct(&mut store, &component_shares, &root)??;
+        let identity = Self::open_sealed(&sealed, sealing_key);
+        sealed.zeroize();
+        identity
     }
 
     /// Project this identity into `context` with fresh OS-supplied randomness.
