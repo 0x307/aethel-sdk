@@ -30,6 +30,19 @@ document for what counts as breaking inside `0.x`.
   control that a key announcing a different algorithm is refused.
 - `ML_DSA_65_MULTICODEC`.
 
+### Security
+
+- The narrow timing claim is now written down and enforced. `aethel-core` compares
+  authentication-bearing bytes in constant time in `ct_verify.rs`, and this crate must not
+  undo that with a plain `==` on a signature, a proof, or key material. Every comparison that
+  decides whether something verifies happens inside the component; the SDK passes the bytes
+  across the boundary and returns the answer. `scripts/check-comparisons.sh` runs in CI and
+  fails on any equality in `src/` not listed in `scripts/allowed-comparisons.txt` with a
+  written reason, so a new one is a decision rather than an unremarked diff. The three listed
+  today are a build-metadata key name, the embedded component's published hash, and a public
+  attribute name. None of this claims the SDK, the host runtime, or a calling application is
+  constant-time end to end, and the README says so.
+
 ## [0.3.2] - 2026-09-03
 
 ### Security

@@ -161,6 +161,26 @@ cargo run --example projection
 it could not process. Those are different answers on purpose. Treating an error as "invalid"
 is the mistake that makes malformed input look like a failed check.
 
+### What is and is not claimed about timing
+
+`aethel-core` compares authentication-bearing bytes in constant time, in its `ct_verify.rs`.
+Every comparison that decides whether something verifies happens down there, inside the
+component: this crate passes the signature, the proof and the key across the boundary and
+returns the answer the component gives it. It never compares them itself.
+
+That is the whole of the claim. **This is not a statement that the SDK, the host runtime, or
+your application is constant-time end to end.** wasmtime's compilation and execution, your
+allocator, and anything you do with the result are all outside it, and a serious side-channel
+posture would have to account for them. What is claimed is narrower and worth stating on its
+own: the ergonomic layer does not undo the work the core already did.
+
+Keeping it that way is enforced rather than intended. `scripts/check-comparisons.sh` runs in
+CI and fails on any equality comparison in `src/` that is not in
+`scripts/allowed-comparisons.txt` with a written reason. The three currently listed are a
+build-metadata key name, the embedded component's published hash, and a public attribute
+name. A new `==` on a signature, a proof, or key material fails the build until somebody
+looks at it.
+
 ### Verifying more than occasionally
 
 The free functions above are the convenient path: a script, a test, a one-off verification.
