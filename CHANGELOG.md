@@ -39,6 +39,16 @@ document for what counts as breaking inside `0.x`.
   ship in the package, and every release entry states the embedded revision. See
   [`STABILITY.md`](./STABILITY.md) section 6.
 
+### Added
+
+- Offline generation is now proven in CI rather than asserted. The `offline generation
+  (network-isolated)` job runs the suite inside a network namespace with no interface, and
+  `tests/network_isolation_negative_control.rs` opens a real TCP connection that the job
+  requires to **fail** there. Without that control, isolation silently ceasing to apply and
+  isolation working look identical from a passing suite. Mirrors `aethel-core`'s proof of the
+  same property, deliberately: the core proves its generation reaches nothing, and this proves
+  the SDK around it did not introduce a fetch.
+
 ### Security
 
 - The narrow timing claim is now written down and enforced. `aethel-core` compares

@@ -18,6 +18,56 @@ jobs:
       # quickstart fails CI rather than a reader's first five minutes.
       - run: cargo run --example quickstart
 
+  # P5-05: proves identity generation works fully offline by denying the
+  # capability at the boundary — a real network namespace with no interface —
+  # rather than by an in-process "am I offline?" assertion. An in-process check
+  # can only observe the paths it knows to instrument, and this crate embeds a
+  # WebAssembly runtime and a compiled component underneath the claim, so it
+  # would pass even if something below still had a route out.
+  #
+  # `sudo unshare --net` puts the step's process tree in a fresh network
+  # namespace with no configured interface, equivalent to a container runtime's
+  # `--network none` without having to answer "how does an offline container
+  # fetch crates". GitHub-hosted ubuntu-latest runners have passwordless sudo,
+  # so this needs no extra setup.
+  #
+  # sudo, not the unprivileged `unshare --net --map-root-user`, and that is not
+  # a preference. aethel-core tried the unprivileged form first, to avoid
+  # depending on passwordless sudo, and it works in WSL2 but not on
+  # GitHub-hosted runners: Ubuntu 23.10+ blocks unprivileged user-namespace
+  # creation through AppArmor, so the job died before either isolated step ran
+  # and produced zero evidence in either direction. That failure is the reason
+  # this is written the way it is; do not "simplify" it back.
+  #
+  # Dependencies and test binaries are built in the first step, which has
+  # network. The isolated steps only execute already-built code, with
+  # `--offline`, so cargo never needs a route either.
+  offline-generation:
+    name: offline generation (network-isolated)
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Prefetch deps and build test binaries (network available here)
+        run: cargo build --all-targets
+
+      - name: The suite MUST pass with no network interface available
+        # The negative control is skipped by name here rather than by listing
+        # every other suite, so a new test file is covered by this proof
+        # automatically instead of being silently left out of it.
+        run: |
+          sudo -E env "PATH=$PATH" unshare --net --             cargo test --offline -- --skip network_call_succeeds_when_a_route_exists
+
+      - name: Negative control MUST fail with no network interface available
+        run: |
+          if sudo -E env "PATH=$PATH" unshare --net --                cargo test --offline --test network_isolation_negative_control; then
+            echo "::error::negative-control network call succeeded inside the network-isolated step — isolation is NOT enforced, and the offline-generation claim is unproven"
+            exit 1
+          fi
+          echo "Negative control failed as expected under network isolation — isolation confirmed real."
+
   comparisons:
     name: no unreviewed equality in src/
     runs-on: ubuntu-latest
