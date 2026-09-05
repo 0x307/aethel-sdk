@@ -45,6 +45,8 @@ verbs on top of it:
 - **Contextual projection.** `Identity::project_at(context)` obtains fresh OS randomness for
   each call and returns public context-bound material without exposing the identity's master
   secret.
+- **Offline generation.** Creating an identity reaches nothing. Proven in CI rather than
+  asserted; see [Generation is offline](#generation-is-offline-and-that-is-proven).
 - **Interoperable public keys.** `Identity::public_key_multibase()` emits a W3C Multikey, so a
   verifier that has never seen this SDK can decode the key and know which algorithm produced
   it.
@@ -56,8 +58,6 @@ verbs on top of it:
 
 - Predicate proofs over hidden attributes. See [What this cannot
   do](#what-this-cannot-do-yet)
-- Offline generation, proven by network isolation in CI
-- SAAP selective disclosure over named attributes
 - HTSS threshold recovery (split and recombine)
 - A ten-minute quickstart
 - A published security model
@@ -180,6 +180,23 @@ CI and fails on any equality comparison in `src/` that is not in
 build-metadata key name, the embedded component's published hash, and a public attribute
 name. A new `==` on a signature, a proof, or key material fails the build until somebody
 looks at it.
+
+### Generation is offline, and that is proven
+
+`Identity::generate()` makes no network call. Neither does anything under it: the component is
+compiled into the crate rather than fetched, and the key is derived inside it.
+
+That is a claim worth more than an assurance, so CI proves it by denying the capability rather
+than by asserting about it. The `offline generation (network-isolated)` job builds the test
+binaries with network available, then runs the suite again inside a network namespace with no
+interface. Generation has to keep working there.
+
+The half that makes it evidence is the negative control. `tests/network_isolation_negative_control.rs`
+deliberately opens a TCP connection to `1.1.1.1:443`, and the job requires that test to **fail**
+inside the isolated step. An in-process "am I offline?" assertion can only see the paths it
+knows to instrument, and this crate has a WebAssembly runtime underneath it; if the isolation
+ever silently stopped being applied, a suite that merely passes would look identical. A control
+that must fail is what tells the two apart.
 
 ### Verifying more than occasionally
 
