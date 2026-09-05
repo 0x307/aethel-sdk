@@ -90,7 +90,21 @@ what makes a 0.x project look abandoned; a shipped no-op doesn't.
 This cadence is a floor, not a promise of frequency above it. Faster is normal, especially
 early. The floor is what's meant to hold indefinitely, including through a slow stretch.
 
-## 6. Support posture
+## 6. Versions do not track `aethel-core`
+
+Early releases happened to carry the same version as the `aethel-core` revision they embedded,
+and `0.1.5` said so. **That is no longer a rule.** The two version themselves for their own
+reasons: this crate's surface changes when its surface changes, and the core's does the same,
+so holding them equal would mean cutting empty releases here to chase a core version, or
+sitting on a shipped feature waiting for one.
+
+The pin is what identifies the pair, not the version number. `core/pin.toml` names the exact
+`aethel-core` revision, `core/component.sha256` names the artifact built from it, and both are
+in the published package. Every release's changelog entry states the embedded revision, so
+which core a given SDK version carries is always answerable, and answerable more precisely
+than a matching version number ever said.
+
+## 7. Support posture
 
 **Best-effort, no SLA, single named maintainer** — see `README.md` for who that is right now.
 There's no team and no on-call rotation behind this project. In practice:
@@ -102,7 +116,7 @@ There's no team and no on-call rotation behind this project. In practice:
 - "Best-effort" means exactly that, not a soft-pedaled response-time promise. If that changes,
   this document changes with it.
 
-## 7. Where this applies
+## 8. Where this applies
 
 This policy is shared across every repo in this family, not restated per repo. Each repo's
 `SECURITY.md` and `CHANGELOG.md` reference this document rather than duplicating it.

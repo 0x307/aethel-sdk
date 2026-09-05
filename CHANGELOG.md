@@ -30,6 +30,15 @@ document for what counts as breaking inside `0.x`.
   control that a key announcing a different algorithm is refused.
 - `ML_DSA_65_MULTICODEC`.
 
+### Changed
+
+- SDK versions no longer track `aethel-core`'s. `0.1.5` said they did; they now version
+  independently, because holding them equal means either cutting empty releases here to chase
+  a core version or sitting on a shipped feature waiting for one. The pin identifies the pair
+  instead: `core/pin.toml` names the revision, `core/component.sha256` names the artifact, both
+  ship in the package, and every release entry states the embedded revision. See
+  [`STABILITY.md`](./STABILITY.md) section 6.
+
 ### Security
 
 - The narrow timing claim is now written down and enforced. `aethel-core` compares
