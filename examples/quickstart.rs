@@ -12,7 +12,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let message = b"the message that was actually signed";
     let signature = identity.sign(message)?;
     assert!(verify(identity.public_key(), message, &signature)?);
-    assert!(!verify(identity.public_key(), b"something else", &signature)?);
+    assert!(!verify(
+        identity.public_key(),
+        b"something else",
+        &signature
+    )?);
+
+    // The interoperable form of the public key: base58btc over the multicodec
+    // code for ML-DSA-65. This is what goes in a DID document.
+    let multikey = identity.public_key_multibase();
+    assert!(multikey.starts_with('z'));
 
     // Persist it. `key` must be high-entropy key material, NOT a password.
     let key = b"a sealing key of thirty-two byte";
@@ -28,7 +37,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // The verifier learns the tier and nothing about the date of birth.
     assert_eq!(presentation.disclosed().get("tier"), Some(&3));
-    assert!(presentation.disclosed().get("date_of_birth").is_none());
+    assert!(!presentation.disclosed().contains_key("date_of_birth"));
     assert!(verify_presentation(
         b"the issuer's secret seed, 32 byte",
         &presentation,

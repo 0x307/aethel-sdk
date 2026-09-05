@@ -86,9 +86,15 @@ fn an_unrelated_artifact_is_rejected() {
 #[test]
 fn the_declared_hash_is_well_formed() {
     let declared = artifact::declared_sha256();
-    assert_eq!(declared.len(), 64, "declared hash is not 64 hex characters: {declared}");
+    assert_eq!(
+        declared.len(),
+        64,
+        "declared hash is not 64 hex characters: {declared}"
+    );
     assert!(
-        declared.chars().all(|c| c.is_ascii_digit() || ('a'..='f').contains(&c)),
+        declared
+            .chars()
+            .all(|c| c.is_ascii_digit() || ('a'..='f').contains(&c)),
         "declared hash is not lowercase hex: {declared}"
     );
 }
@@ -110,5 +116,8 @@ fn the_digest_agrees_with_a_known_answer() {
 fn the_pinned_revision_is_a_full_commit_sha() {
     let rev = artifact::core_revision();
     assert_eq!(rev.len(), 40, "pinned rev is not a full commit sha: {rev}");
-    assert!(rev.chars().all(|c| c.is_ascii_hexdigit()), "pinned rev is not hex: {rev}");
+    assert!(
+        rev.chars().all(|c| c.is_ascii_hexdigit()),
+        "pinned rev is not hex: {rev}"
+    );
 }

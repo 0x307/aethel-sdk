@@ -27,12 +27,105 @@
 
 use zeroize::Zeroize;
 
+use crate::component::exports::aethel::core::identity::EphemeralProjection;
 use crate::component::{self, aethel::core::types::IdentityError, AethelCore, LoadError};
 use wasmtime::component::ResourceAny;
 use wasmtime::Store;
 
 /// Minimum entropy accepted by the component's key derivation.
 pub const MIN_ENTROPY_BYTES: usize = 32;
+/// Minimum bytes of secret randomness required for one PLP projection.
+pub const MIN_PROJECTION_RANDOMNESS_BYTES: usize = 32;
+
+/// The multicodec code for an ML-DSA-65 public key, registered upstream.
+///
+/// Named rather than inlined because the byte sequence it encodes is what a
+/// decoder keys on: get it wrong and the output is still a well-formed
+/// base58btc string, just one that describes a different algorithm.
+pub const ML_DSA_65_MULTICODEC: u32 = 0x1211;
+
+/// Encode `public_key` as a W3C Multikey. See
+/// [`Identity::public_key_multibase`].
+fn multikey(public_key: &[u8]) -> String {
+    let mut prefixed = unsigned_varint(ML_DSA_65_MULTICODEC);
+    prefixed.extend_from_slice(public_key);
+    format!("z{}", bs58::encode(&prefixed).into_string())
+}
+
+/// Unsigned LEB128, the multiformats varint. Seven bits of payload per byte,
+/// low group first, high bit set on every byte but the last.
+fn unsigned_varint(mut value: u32) -> Vec<u8> {
+    let mut out = Vec::new();
+    while value >= 0x80 {
+        out.push((value as u8) | 0x80);
+        value >>= 7;
+    }
+    out.push(value as u8);
+    out
+}
+
+/// A public, context-bound PLP projection.
+///
+/// A projection contains only its padded context tag, public per-projection
+/// salt, and public projection coefficients. The identity's PLP master seed
+/// stays inside the component and is not represented here.
+///
+/// Under aethel-core's stated M-LWE security assumptions, the master secret is
+/// not derivable from any number of projections made with fresh, secret
+/// randomness. That randomness derives the public salt, which in turn derives
+/// this projection's context matrix; fresh salts keep same-context projections
+/// from sharing the matrix needed for the historical averaging attack. This is
+/// a cryptographic property of aethel-core's construction, not one SDK unit
+/// tests can prove.
+pub struct Projection {
+    inner: EphemeralProjection,
+}
+
+impl Projection {
+    fn from_component(inner: EphemeralProjection) -> Self {
+        Self { inner }
+    }
+
+    /// The core's padded 32-byte context tag (τ).
+    pub fn tau(&self) -> &[u8] {
+        &self.inner.tau
+    }
+
+    /// The public 32-byte salt that selects this projection's context matrix.
+    pub fn salt(&self) -> &[u8] {
+        &self.inner.salt
+    }
+
+    /// The public projection coefficients (b_τ).
+    pub fn public_b(&self) -> &[u32] {
+        &self.inner.public_b
+    }
+
+    /// Canonical core projection encoding: padded τ, salt, then `public_b`
+    /// coefficients as little-endian `u32`s.
+    ///
+    /// This encoding intentionally excludes the context matrix: core derives
+    /// that matrix from τ and salt during verification.
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut bytes = Vec::with_capacity(64 + self.inner.public_b.len() * 4);
+        bytes.extend_from_slice(&self.inner.tau);
+        bytes.extend_from_slice(&self.inner.salt);
+        for coefficient in &self.inner.public_b {
+            bytes.extend_from_slice(&coefficient.to_le_bytes());
+        }
+        bytes
+    }
+}
+
+impl core::fmt::Debug for Projection {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("Projection")
+            .field("tau", &self.tau())
+            .field("salt", &self.salt())
+            .field("public_b_coefficients", &self.public_b().len())
+            .finish()
+    }
+}
 
 /// Anything that can go wrong generating or using an identity.
 #[derive(Debug)]
@@ -125,7 +218,10 @@ impl core::fmt::Debug for Identity {
             .collect();
         f.debug_struct("Identity")
             .field("public_key", &format_args!("{fingerprint}..."))
-            .field("secret", &format_args!("<held in the component, never here>"))
+            .field(
+                "secret",
+                &format_args!("<held in the component, never here>"),
+            )
             .finish()
     }
 }
@@ -166,12 +262,34 @@ impl Identity {
             .master_identity()
             .call_public_key(&mut store, handle)?;
 
-        Ok(Self { store, bindings, handle, public_key })
+        Ok(Self {
+            store,
+            bindings,
+            handle,
+            public_key,
+        })
     }
 
     /// The ML-DSA-65 public key. Safe to publish.
     pub fn public_key(&self) -> &[u8] {
         &self.public_key
+    }
+
+    /// The public key as a [W3C Multikey][mk]: base58btc, `z`-prefixed, over
+    /// the multicodec code for ML-DSA-65 followed by the key bytes.
+    ///
+    /// This is the interoperable form. `public_key()` returns raw bytes, which
+    /// say nothing about which algorithm produced them; a Multikey names the
+    /// algorithm in-band, so a verifier that has never seen this SDK can decode
+    /// it and know what it is holding.
+    ///
+    /// The code is `0x1211`, which is registered upstream in the
+    /// [multicodec table][mc] for ML-DSA-65, so nothing here is private-use.
+    ///
+    /// [mk]: https://www.w3.org/TR/controller-document/#multikey
+    /// [mc]: https://github.com/multiformats/multicodec
+    pub fn public_key_multibase(&self) -> String {
+        multikey(&self.public_key)
     }
 
     /// Sign a message.
@@ -186,8 +304,53 @@ impl Identity {
             .call_sign(&mut self.store, self.handle, message)??;
         Ok(signature)
     }
-}
 
+    /// Project this identity into `context` with fresh OS-supplied randomness.
+    ///
+    /// This is the preferred API. Each call samples new secret randomness, so
+    /// even two projections at the same context have different salts and
+    /// independent context matrices. No master secret leaves the component.
+    pub fn project_at(&mut self, context: &[u8]) -> Result<Projection, Error> {
+        let mut randomness = [0u8; MIN_PROJECTION_RANDOMNESS_BYTES];
+        getrandom::getrandom(&mut randomness).map_err(Error::Entropy)?;
+        let projection = self.project_at_with_randomness(context, &randomness);
+        randomness.zeroize();
+        projection
+    }
+
+    /// Project this identity into `context` using caller-provided randomness.
+    ///
+    /// `randomness` must contain at least
+    /// [`MIN_PROJECTION_RANDOMNESS_BYTES`] bytes. In normal use it must be
+    /// freshly sampled secret entropy for every projection; derive it
+    /// neither from the context nor from identity data. Core derives both the
+    /// public salt and the projection error from it.
+    ///
+    /// Reusing the same randomness at the same context reproduces the same
+    /// projection byte-for-byte. That reuse creates no new independent sample,
+    /// but using fresh randomness through [`Identity::project_at`] is the safe
+    /// default and prevents the shared-matrix averaging attack this construction
+    /// is designed to avoid.
+    ///
+    /// Under aethel-core's stated M-LWE security assumptions, fresh, secret
+    /// randomness makes the master secret non-derivable from any number of
+    /// projections. The salt it derives gives each projection its own context
+    /// matrix, including at a repeated context, so the historical averaging
+    /// attack has no shared matrix to use. This is a property of the underlying
+    /// cryptographic construction, not a claim SDK unit tests can establish.
+    pub fn project_at_with_randomness(
+        &mut self,
+        context: &[u8],
+        randomness: &[u8],
+    ) -> Result<Projection, Error> {
+        let projection = self
+            .bindings
+            .aethel_core_identity()
+            .master_identity()
+            .call_project_at_context(&mut self.store, self.handle, context, randomness)??;
+        Ok(Projection::from_component(projection))
+    }
+}
 
 /// Minimum sealing key length. See [`Identity::export_sealed`].
 pub const MIN_SEAL_KEY_BYTES: usize = 32;
@@ -241,7 +404,12 @@ impl Identity {
             .master_identity()
             .call_public_key(&mut store, handle)?;
 
-        Ok(Self { store, bindings, handle, public_key })
+        Ok(Self {
+            store,
+            bindings,
+            handle,
+            public_key,
+        })
     }
 }
 

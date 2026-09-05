@@ -1,0 +1,27 @@
+# Equality comparisons reviewed and allowed in src/.
+#
+# Checked by scripts/check-comparisons.sh, which fails on anything in src/ that
+# is not listed here. Format is <path><TAB><the source line, trimmed>.
+#
+# The bar for adding a line: the bytes on both sides are public. If either side
+# is a signature, a MAC, a proof, a share, or reconstructed key material, it
+# does not belong here, it belongs in a constant-time comparison.
+#
+# None of the three below touch secret material. As of P5-04 this crate holds
+# no secret-bearing types at all: every secret stays inside the component.
+
+# Reading a key name out of core/pin.toml. Public build metadata, and the
+# comparison is over the key name rather than any value.
+src/artifact.rs	if name.trim() != key {
+
+# The embedded component's SHA-256 against the hash the package declares. Both
+# sides are public: the declared hash ships in the crate and the actual hash is
+# computed from bytes anyone can read. This is a build-integrity check against
+# a substituted artifact, not authentication of a secret, and an attacker who
+# can supply the artifact already knows both values.
+src/artifact.rs	if actual == declared {
+
+# Looking up a disclosure attribute by name. Attribute names are public by
+# design in this API, which is the whole reason disclosure is expressed as
+# named attributes rather than a raw bitmask.
+src/disclosure.rs	.position(|n| n == name)

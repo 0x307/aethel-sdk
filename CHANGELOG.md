@@ -7,6 +7,51 @@ adheres to the breaking-change and deprecation rules in
 [`STABILITY.md`](./STABILITY.md) rather than strict SemVer prior to `1.0.0` — see that
 document for what counts as breaking inside `0.x`.
 
+## [Unreleased]
+
+### Added
+
+- `Identity::project_at(context)`, PLP contextual projection. Each call samples fresh secret
+  randomness from the OS, so two projections at the same context carry different salts and
+  independent context matrices. The master secret stays inside the component.
+- `Identity::project_at_with_randomness(context, randomness)`, for the cases that need a
+  reproducible projection, such as tests or a protocol flow that must present the same
+  projection twice. The randomness must be fresh and secret in ordinary use; reusing it at
+  one context reproduces the projection byte-for-byte.
+- `Projection`, exposing only public material: the padded context tag, the public salt, the
+  public coefficients, and `to_bytes()` over the three of them.
+- `MIN_PROJECTION_RANDOMNESS_BYTES`.
+- `examples/projection.rs`, the worked example the README points at.
+- `Identity::public_key_multibase()`, the public key as a W3C Multikey: base58btc over the
+  registered ML-DSA-65 multicodec code and the key bytes. `public_key()` returns raw bytes
+  that name no algorithm; a Multikey names it in-band, so a verifier that has never seen this
+  SDK can decode it. Checked in `tests/multikey.rs` against the third-party `multibase` crate
+  and against `pqc-sig`, two decoders that share no code with the encoder, plus a negative
+  control that a key announcing a different algorithm is refused.
+- `ML_DSA_65_MULTICODEC`.
+
+### Changed
+
+- SDK versions no longer track `aethel-core`'s. `0.1.5` said they did; they now version
+  independently, because holding them equal means either cutting empty releases here to chase
+  a core version or sitting on a shipped feature waiting for one. The pin identifies the pair
+  instead: `core/pin.toml` names the revision, `core/component.sha256` names the artifact, both
+  ship in the package, and every release entry states the embedded revision. See
+  [`STABILITY.md`](./STABILITY.md) section 6.
+
+### Security
+
+- The narrow timing claim is now written down and enforced. `aethel-core` compares
+  authentication-bearing bytes in constant time in `ct_verify.rs`, and this crate must not
+  undo that with a plain `==` on a signature, a proof, or key material. Every comparison that
+  decides whether something verifies happens inside the component; the SDK passes the bytes
+  across the boundary and returns the answer. `scripts/check-comparisons.sh` runs in CI and
+  fails on any equality in `src/` not listed in `scripts/allowed-comparisons.txt` with a
+  written reason, so a new one is a decision rather than an unremarked diff. The three listed
+  today are a build-metadata key name, the embedded component's published hash, and a public
+  attribute name. None of this claims the SDK, the host runtime, or a calling application is
+  constant-time end to end, and the README says so.
+
 ## [0.3.2] - 2026-09-03
 
 ### Security

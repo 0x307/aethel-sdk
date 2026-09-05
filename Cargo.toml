@@ -39,6 +39,13 @@ name = "aethel_sdk"
 # component.
 sha2 = "0.10"
 
+# base58btc, the alphabet W3C Multikey requires. An encoding, not a
+# cryptographic operation: no key is derived, checked, or protected by it, and
+# the bytes it encodes come out of the component already public. The multicodec
+# varint prefix is eight lines below and stays here rather than pulling a
+# signature library in for it.
+bs58 = "0.5"
+
 # Wiping this crate's copy of the entropy passed into key generation. The secret
 # itself is never here, but the input that determines it briefly is.
 zeroize = { version = "1.7", default-features = false, features = ["alloc"] }
@@ -63,3 +70,10 @@ wasmtime = { version = "48.0.1", default-features = false, features = ["runtime"
 aethel-core = { version = "0.3", git = "https://github.com/0x307/aethel-core", rev = "a09787d67a120f1d8a81b41755acf1e75c8f3289" }
 
 [dev-dependencies]
+# Independent verifiers for the Multikey encoding, used only by
+# tests/multikey.rs. `multibase` is a third-party implementation of the
+# multiformats spec, and `pqc-sig` is a separate codebase from this one. If our
+# eight lines of varint and our choice of base are wrong, a decoder that shares
+# no code with them says so.
+multibase = "0.9"
+pqc-sig = "0.3.1"

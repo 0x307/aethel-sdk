@@ -34,15 +34,22 @@ ergonomic layer may reintroduce variable-time comparison above the L1 boundary. 
 already does constant-time comparison internally; a plain `==` on a signature, MAC, or proof
 up here would quietly undo that.
 
-Multikey output and the offline-generation CI gate are not yet built; the rest of this
-milestone is.
+The offline-generation CI gate is not yet built; the rest of this milestone is. Multikey
+output is `Identity::public_key_multibase()`, checked in `tests/multikey.rs` against two
+decoders that share no code with the encoder.
 
-## PLP contextual projection
+## PLP contextual projection (shipped)
 
 Contextual projection — `project_at(context)` — so the same identity produces projections
-that are unlinkable across different contexts, verifiable by the caller, and reproducible for
-the same identity and context. This is the part of the SDK that makes it more than another
-signing library, and it should read as roughly one line of caller code.
+that use fresh secret randomness and are independent both across contexts and across repeated
+calls at one context. Reproducibility is valid only when identity, context, and caller-supplied
+randomness are all the same. This is the part of the SDK that makes it more than another signing
+library, and it should read as roughly one line of caller code.
+
+Shipped as `Identity::project_at()` and `Identity::project_at_with_randomness()`. Standalone
+PLP proof and verification (`prove`, `plp-verify`) are callable through the component but are
+not wrapped on this surface yet, so a projection is not yet something a caller can prove
+ownership of.
 
 ## SAAP selective disclosure (shipped)
 
@@ -53,7 +60,7 @@ proof. Documented with a worked example — "prove one thing without revealing t
 
 Shipped as disclosure over a credential's own named attributes
 (`issue_credential()`/`present()`/`verify_presentation()`); it does not sit on top of a PLP
-projection yet, since that milestone below isn't built. Predicate proofs over a hidden
+projection yet, since it was built before that milestone. Predicate proofs over a hidden
 attribute are also not implemented — see the README's "what this cannot do" section.
 
 ## HTSS recovery

@@ -15,7 +15,10 @@ const OTHER_ENTROPY: &[u8; 32] = b"a completely different entropy!!";
 #[test]
 fn generate_produces_an_identity_with_a_public_key() {
     let id = Identity::generate().expect("generate");
-    assert!(!id.public_key().is_empty(), "generated identity has no public key");
+    assert!(
+        !id.public_key().is_empty(),
+        "generated identity has no public key"
+    );
 }
 
 /// Two calls to `generate` must differ, or the OS entropy is not reaching the
@@ -152,7 +155,10 @@ fn debug_formatting_does_not_leak() {
 /// `debug_formatting_does_not_leak` proves only that `contains` was called.
 #[test]
 fn the_leak_check_can_detect_a_leak() {
-    let leaky = format!("Identity {{ entropy: {} }}", String::from_utf8_lossy(ENTROPY));
+    let leaky = format!(
+        "Identity {{ entropy: {} }}",
+        String::from_utf8_lossy(ENTROPY)
+    );
     assert!(
         leaky.contains("deterministic entropy for tests!"),
         "the leak check cannot detect the entropy even when it is present"

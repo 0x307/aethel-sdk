@@ -47,7 +47,9 @@ impl Verifier {
     /// This is where the 230 ms first-use compile happens for this verifier.
     /// Call it once, at startup, rather than lazily on the first request.
     pub fn new() -> Result<Self, Error> {
-        Ok(Self { runtime: component::Runtime::new()? })
+        Ok(Self {
+            runtime: component::Runtime::new()?,
+        })
     }
 
     /// Verify a signature against a public key.

@@ -18,6 +18,20 @@ jobs:
       # quickstart fails CI rather than a reader's first five minutes.
       - run: cargo run --example quickstart
 
+  comparisons:
+    name: no unreviewed equality in src/
+    runs-on: ubuntu-latest
+    # aethel-core does constant-time comparison in ct_verify.rs. This crate is
+    # not allowed to undo that with a plain == on a signature, a proof, or key
+    # material. The check freezes the reviewed set of comparisons in src/ and
+    # fails on anything new, so each one is a decision rather than a diff
+    # nobody looked twice at. The self-test runs first: a check that has never
+    # been shown to fail is not known to work.
+    steps:
+      - uses: actions/checkout@v4
+      - run: scripts/check-comparisons.sh --self-test
+      - run: scripts/check-comparisons.sh
+
   wasm32:
     name: wasm32 still builds
     runs-on: ubuntu-latest

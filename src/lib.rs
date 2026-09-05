@@ -18,6 +18,8 @@
 //! - [`Identity::sign`] and [`verify`], ML-DSA-65
 //! - [`Identity::export_sealed`] and [`Identity::open_sealed`], so an identity
 //!   survives the process
+//! - [`Identity::public_key_multibase`], the public key as a W3C Multikey
+//! - [`Identity::project_at`], fresh, context-bound PLP projections
 //! - [`Identity::issue_credential`], BDLOP issuance over named attributes
 //! - [`Identity::present`] and [`verify_presentation`], SAAP selective
 //!   disclosure: the verifier learns the disclosed attributes and nothing about
@@ -25,9 +27,9 @@
 //!
 //! # What is not on this surface
 //!
-//! Callable through the component but not wrapped here: standalone PLP
-//! projection and proof (`project-at-context`, `prove`, `plp-verify`), and HTSS
-//! threshold split and reconstruct. `ROADMAP.md` has the sequence.
+//! Callable through the component but not wrapped here: standalone PLP proof
+//! (`prove`, `plp-verify`) and HTSS threshold split and reconstruct.
+//! `ROADMAP.md` has the sequence.
 //!
 //! # What is not built anywhere
 //!
@@ -69,7 +71,7 @@ pub mod verifier;
 pub use disclosure::{verify_presentation, Credential, Presentation};
 
 #[cfg(not(target_arch = "wasm32"))]
-pub use identity::{verify, Identity};
+pub use identity::{verify, Identity, Projection};
 
 #[cfg(not(target_arch = "wasm32"))]
 pub use verifier::Verifier;

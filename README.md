@@ -15,8 +15,8 @@ verbs on top of it:
 
 - **Generate** an identity and persist it
 - **Sign** a message and **verify** a signature
-- **Project** an identity into a caller-supplied context (PLP), so the same identity is
-  unlinkable across contexts
+- **Project** an identity into a caller-supplied context (PLP), with fresh
+  per-projection randomness so repeated projections are independent
 - **Disclose** selected attributes without revealing the rest (SAAP)
 - **Recover** an identity from threshold shares (HTSS)
 
@@ -42,6 +42,12 @@ verbs on top of it:
 - **Selective disclosure.** Issue a credential over named attributes, present it disclosing only
   the ones you choose, and verify the presentation. `issue_credential()`, `present()` and
   `verify_presentation()`.
+- **Contextual projection.** `Identity::project_at(context)` obtains fresh OS randomness for
+  each call and returns public context-bound material without exposing the identity's master
+  secret.
+- **Interoperable public keys.** `Identity::public_key_multibase()` emits a W3C Multikey, so a
+  verifier that has never seen this SDK can decode the key and know which algorithm produced
+  it.
 - Nothing cryptographic is implemented in this crate, and nothing ever will be. Every
   cryptographic operation lives inside the component. That is the charter's L1 boundary: one
   artifact, embedded by every language, and adding a language never adds crypto.
@@ -50,9 +56,7 @@ verbs on top of it:
 
 - Predicate proofs over hidden attributes. See [What this cannot
   do](#what-this-cannot-do-yet)
-- Multikey encoding of the public key
 - Offline generation, proven by network isolation in CI
-- PLP contextual projection (`project_at(context)`)
 - SAAP selective disclosure over named attributes
 - HTSS threshold recovery (split and recombine)
 - A ten-minute quickstart
@@ -82,6 +86,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     assert!(verify(identity.public_key(), message, &signature)?);
     assert!(!verify(identity.public_key(), b"something else", &signature)?);
 
+    // The interoperable form of the public key: base58btc over the multicodec
+    // code for ML-DSA-65. This is what goes in a DID document.
+    let multikey = identity.public_key_multibase();
+    assert!(multikey.starts_with('z'));
+
     // Persist it. `key` must be high-entropy key material, NOT a password.
     let key = b"a sealing key of thirty-two byte";
     let sealed = identity.export_sealed(key)?;
@@ -110,11 +119,67 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 No network access is involved, and nothing is fetched at install time: the component is
 compiled into the crate.
 
+## Contextual projection
+
+Use [`Identity::project_at`] for the safe, ordinary path:
+
+```rust
+let projection = identity.project_at(b"checkout-session")?;
+println!("public projection salt: {:02x?}", projection.salt());
+```
+
+Every call obtains fresh secret OS randomness. Consequently, calls for the same identity and
+context produce different salts and public projection material; this prevents projections at one
+context from sharing the matrix needed by the historical averaging attack.
+
+`Identity::project_at_with_randomness(context, randomness)` exists only when reproducibility is
+needed, such as tests or an advanced protocol flow. Its randomness must be secret and freshly
+sampled for each projection, must be at least 32 bytes, and must never be derived
+deterministically from context or identity data. Reusing it at the same context reproduces the
+same projection byte-for-byte, so it contributes no new independent sample. Prefer
+`project_at` unless the caller can meet and retain that obligation.
+
+The projection exposes only padded context, public salt, and public coefficients; the component
+keeps the master secret. That non-exposure is an API property, not a standalone proof of the
+underlying construction's security.
+
+Under aethel-core's stated M-LWE security assumptions, the master secret is not derivable from
+any number of projections produced with fresh, secret randomness. Each projection's
+salt-derived context matrix prevents same-context projections from sharing the matrix required
+by the historical averaging attack. This is a cryptographic property of aethel-core's
+construction; SDK tests cover observable non-exposure proxies, not non-derivability.
+
+Run the complete worked example with:
+
+```bash
+cargo run --example projection
+```
+
 ### What you are trusting
 
 `verify` returns `Ok(false)` for a signature that does not verify and an error only for input
 it could not process. Those are different answers on purpose. Treating an error as "invalid"
 is the mistake that makes malformed input look like a failed check.
+
+### What is and is not claimed about timing
+
+`aethel-core` compares authentication-bearing bytes in constant time, in its `ct_verify.rs`.
+Every comparison that decides whether something verifies happens down there, inside the
+component: this crate passes the signature, the proof and the key across the boundary and
+returns the answer the component gives it. It never compares them itself.
+
+That is the whole of the claim. **This is not a statement that the SDK, the host runtime, or
+your application is constant-time end to end.** wasmtime's compilation and execution, your
+allocator, and anything you do with the result are all outside it, and a serious side-channel
+posture would have to account for them. What is claimed is narrower and worth stating on its
+own: the ergonomic layer does not undo the work the core already did.
+
+Keeping it that way is enforced rather than intended. `scripts/check-comparisons.sh` runs in
+CI and fails on any equality comparison in `src/` that is not in
+`scripts/allowed-comparisons.txt` with a written reason. The three currently listed are a
+build-metadata key name, the embedded component's published hash, and a public attribute
+name. A new `==` on a signature, a proof, or key material fails the build until somebody
+looks at it.
 
 ### Verifying more than occasionally
 

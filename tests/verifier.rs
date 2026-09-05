@@ -20,7 +20,9 @@ fn a_held_verifier_agrees_with_the_free_function_for_signatures() {
         .verify(identity.public_key(), message, &signature)
         .expect("verify"));
     assert_eq!(
-        verifier.verify(identity.public_key(), message, &signature).expect("verify"),
+        verifier
+            .verify(identity.public_key(), message, &signature)
+            .expect("verify"),
         verify(identity.public_key(), message, &signature).expect("verify"),
     );
     assert!(!verifier
@@ -34,16 +36,21 @@ fn a_held_verifier_agrees_with_the_free_function_for_presentations() {
     let issuer_seed = b"the issuer's secret seed, 32 byte";
     let context = b"checkout-session";
 
-    let credential =
-        identity.issue_credential(issuer_seed, &[("tier", 3)]).expect("issue");
-    let presentation = identity.present(&credential, context, &["tier"]).expect("present");
+    let credential = identity
+        .issue_credential(issuer_seed, &[("tier", 3)])
+        .expect("issue");
+    let presentation = identity
+        .present(&credential, context, &["tier"])
+        .expect("present");
 
     let verifier = Verifier::new().expect("verifier");
     assert!(verifier
         .verify_presentation(issuer_seed, &presentation, context)
         .expect("verify"));
     assert_eq!(
-        verifier.verify_presentation(issuer_seed, &presentation, context).expect("verify"),
+        verifier
+            .verify_presentation(issuer_seed, &presentation, context)
+            .expect("verify"),
         verify_presentation(issuer_seed, &presentation, context).expect("verify"),
     );
     assert!(!verifier

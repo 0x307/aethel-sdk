@@ -110,7 +110,11 @@ impl Runtime {
         let component = Component::from_binary(&engine, bytes).map_err(LoadError::Runtime)?;
         let linker = Linker::new(&engine);
 
-        Ok(Runtime { engine, component, linker })
+        Ok(Runtime {
+            engine,
+            component,
+            linker,
+        })
     }
 
     /// Produce a fresh store and instance.

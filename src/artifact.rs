@@ -115,7 +115,10 @@ pub fn verify(bytes: &[u8]) -> Result<(), IntegrityError> {
     if actual == declared {
         Ok(())
     } else {
-        Err(IntegrityError { declared: declared.to_string(), actual })
+        Err(IntegrityError {
+            declared: declared.to_string(),
+            actual,
+        })
     }
 }
 
