@@ -7,6 +7,35 @@ adheres to the breaking-change and deprecation rules in
 [`STABILITY.md`](./STABILITY.md) rather than strict SemVer prior to `1.0.0` — see that
 document for what counts as breaking inside `0.x`.
 
+## [Unreleased]
+
+### Added
+
+- `Identity::project_at(context)`, PLP contextual projection. Each call samples fresh secret
+  randomness from the OS, so two projections at the same context carry different salts and
+  independent context matrices. The master secret stays inside the component.
+- `Identity::project_at_with_randomness(context, randomness)`, for the cases that need a
+  reproducible projection, such as tests or a protocol flow that must present the same
+  projection twice. The randomness must be fresh and secret in ordinary use; reusing it at
+  one context reproduces the projection byte-for-byte.
+- `Projection`, exposing only public material: the padded context tag, the public salt, the
+  public coefficients, and `to_bytes()` over the three of them.
+- `MIN_PROJECTION_RANDOMNESS_BYTES`.
+- `examples/projection.rs`, the worked example the README points at.
+
+### Changed
+
+- The embedded component moved to `aethel-core` 0.3.1
+  (`d1eb72d4b48c3fe93b2f60c33d175b6364475458`). This landed before the projection work and
+  is recorded here because it has not shipped in a release yet.
+
+  | | |
+  |---|---|
+  | artifact | `core/aethel_core.component.wasm` |
+  | SHA-256 | `4b062101f3f457644858304d99d343a9acd6363e2bf55b7dea3870015de29ef6` |
+  | aethel-core revision | `d1eb72d4b48c3fe93b2f60c33d175b6364475458` |
+  | canonical toolchain | ubuntu-24.04, Rust 1.97.0, wasm-tools 1.258.0 |
+
 ## [0.1.5] - 2026-08-31
 
 Version numbers track `aethel-core`, so the SDK and the component it embeds are

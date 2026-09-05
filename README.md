@@ -134,13 +134,15 @@ same projection byte-for-byte, so it contributes no new independent sample. Pref
 
 The projection exposes only padded context, public salt, and public coefficients; the component
 keeps the master secret. That non-exposure is an API property, not a standalone proof of the
-underlying construction's security. Run the complete worked example with:
+underlying construction's security.
 
 Under aethel-core's stated M-LWE security assumptions, the master secret is not derivable from
 any number of projections produced with fresh, secret randomness. Each projection's
 salt-derived context matrix prevents same-context projections from sharing the matrix required
 by the historical averaging attack. This is a cryptographic property of aethel-core's
 construction; SDK tests cover observable non-exposure proxies, not non-derivability.
+
+Run the complete worked example with:
 
 ```bash
 cargo run --example projection

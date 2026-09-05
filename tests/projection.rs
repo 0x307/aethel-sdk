@@ -38,16 +38,19 @@ fn same_context_with_fresh_randomness_produces_independent_projection_material()
 fn different_contexts_produce_distinct_public_projection_material() {
     let mut identity = Identity::from_entropy(ENTROPY).expect("identity");
 
+    // Randomness is held fixed deliberately. If it varied, the projections
+    // would differ for that reason alone and this test would pass without
+    // saying anything about the context. Holding rho constant means the only
+    // varying input is the context, so a divergence here is context separation
+    // and nothing else. This is an operational proxy for unlinkability, not a
+    // proof of it.
     let first = identity
-        .project_at(b"checkout-session-a")
+        .project_at_with_randomness(b"checkout-session-a", &RHO)
         .expect("first projection");
     let second = identity
-        .project_at(b"checkout-session-b")
+        .project_at_with_randomness(b"checkout-session-b", &RHO)
         .expect("second projection");
 
-    // This is an operational proxy for unlinkability, not a proof of it:
-    // distinct contexts and fresh rho yield distinct public context tags, salts,
-    // and projection material.
     assert_ne!(
         first.tau(),
         second.tau(),
@@ -56,12 +59,12 @@ fn different_contexts_produce_distinct_public_projection_material() {
     assert_ne!(
         first.salt(),
         second.salt(),
-        "different contexts shared a salt"
+        "different contexts shared a salt under identical randomness"
     );
     assert_ne!(
         first.public_b(),
         second.public_b(),
-        "different contexts shared public projection material"
+        "different contexts shared public projection material under identical randomness"
     );
 }
 
