@@ -20,6 +20,7 @@
 //!   survives the process
 //! - [`Identity::split_for_recovery`] and [`Identity::recover_from_shares`],
 //!   authenticated 3-of-5 recovery over the canonical sealed identity
+//! - [`Identity::public_key_multibase`], the public key as a W3C Multikey
 //! - [`Identity::project_at`], fresh, context-bound PLP projections
 //! - [`Identity::issue_credential`], BDLOP issuance over named attributes
 //! - [`Identity::present`] and [`verify_presentation`], SAAP selective

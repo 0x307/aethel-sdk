@@ -25,6 +25,7 @@
 //! keeps the model obvious: dropping an identity drops the instance holding its
 //! secret, and two identities cannot observe each other.
 
+use subtle::ConstantTimeEq;
 use zeroize::Zeroize;
 
 use crate::component::exports::aethel::core::identity::EphemeralProjection;
@@ -39,6 +40,33 @@ use wasmtime::Store;
 pub const MIN_ENTROPY_BYTES: usize = 32;
 /// Minimum bytes of secret randomness required for one PLP projection.
 pub const MIN_PROJECTION_RANDOMNESS_BYTES: usize = 32;
+
+/// The multicodec code for an ML-DSA-65 public key, registered upstream.
+///
+/// Named rather than inlined because the byte sequence it encodes is what a
+/// decoder keys on: get it wrong and the output is still a well-formed
+/// base58btc string, just one that describes a different algorithm.
+pub const ML_DSA_65_MULTICODEC: u32 = 0x1211;
+
+/// Encode `public_key` as a W3C Multikey. See
+/// [`Identity::public_key_multibase`].
+fn multikey(public_key: &[u8]) -> String {
+    let mut prefixed = unsigned_varint(ML_DSA_65_MULTICODEC);
+    prefixed.extend_from_slice(public_key);
+    format!("z{}", bs58::encode(&prefixed).into_string())
+}
+
+/// Unsigned LEB128, the multiformats varint. Seven bits of payload per byte,
+/// low group first, high bit set on every byte but the last.
+fn unsigned_varint(mut value: u32) -> Vec<u8> {
+    let mut out = Vec::new();
+    while value >= 0x80 {
+        out.push((value as u8) | 0x80);
+        value >>= 7;
+    }
+    out.push(value as u8);
+    out
+}
 
 /// A public, context-bound PLP projection.
 ///
@@ -186,12 +214,15 @@ pub struct Identity {
     public_key: Vec<u8>,
 }
 
+const HTSS_TOTAL_SHARES: usize = 5;
+
 /// One authenticated HTSS recovery share.
 ///
-/// A share includes the 32-byte Merkle root that authenticates its set, so it
-/// remains recoverable after being serialized and transported independently.
-/// It is recovery-sensitive material: transport encryption and access control
-/// are still required. Authentication is not confidentiality.
+/// The legacy transport encoding carries a claimed 32-byte Merkle root so a
+/// share can be transported independently. That root is untrusted metadata:
+/// [`Identity::recover_from_shares`] authenticates shares only against its
+/// separate `expected_root` argument. This remains recovery-sensitive material;
+/// transport encryption and access control are still required.
 pub struct RecoveryShare {
     index: u8,
     value: Vec<u8>,
@@ -200,7 +231,7 @@ pub struct RecoveryShare {
 }
 
 impl RecoveryShare {
-    /// Encode this share and its required Merkle root for transport or storage.
+    /// Encode this share and its claimed Merkle root for transport or storage.
     ///
     /// The bytes contain recovery-sensitive material. They are portable, not
     /// safe to publish.
@@ -248,10 +279,11 @@ impl core::fmt::Debug for RecoveryShare {
 
 /// A 3-of-5 HTSS recovery set for an identity.
 ///
-/// It keeps the shares and their Merkle root together for serialization. The
-/// root is required for authenticated reconstruction, but should be retained
-/// independently from the shares when possible: a store that can replace both
-/// can substitute an entire recovery set.
+/// The legacy encoding keeps shares and their Merkle root together for
+/// compatibility. Its root is informational and untrusted at recovery time:
+/// retain [`Self::merkle_root`] separately in trusted storage before accepting
+/// serialized shares. A store that can replace both can substitute an entire
+/// recovery set.
 pub struct RecoveryShareSet {
     shares: Vec<RecoveryShare>,
     merkle_root: [u8; 32],
@@ -263,13 +295,16 @@ impl RecoveryShareSet {
         &self.shares
     }
 
-    /// The 32-byte Merkle root used to authenticate this share set.
+    /// The 32-byte Merkle root emitted by the component for this share set.
+    ///
+    /// Save this separately in a trusted location. A root decoded from recovery
+    /// material is an untrusted claim, not a recovery authority.
     pub fn merkle_root(&self) -> &[u8; 32] {
         &self.merkle_root
     }
 
-    /// Encode all shares and their required Merkle root in a versioned binary
-    /// format suitable for transport or storage.
+    /// Encode all shares and a claimed Merkle root in the legacy versioned
+    /// binary format suitable for transport or storage.
     ///
     /// These bytes are recovery-sensitive material and must be protected like
     /// the identity itself. Transport-safe does not mean safe to publish.
@@ -298,8 +333,8 @@ impl RecoveryShareSet {
 
     /// Decode recovery material produced by [`RecoveryShareSet::to_bytes`].
     ///
-    /// The decoded set preserves the association between every share and its
-    /// Merkle root; reconstruction still authenticates it in aethel-core.
+    /// The decoded root is an untrusted claim. Supply a separately retained
+    /// trusted root to [`Identity::recover_from_shares`] for authentication.
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, Error> {
         const HEADER_BYTES: usize = 4 + 1 + 1 + 32;
         if bytes.len() < HEADER_BYTES || &bytes[..4] != b"ATHR" || bytes[4] != 1 {
@@ -445,6 +480,23 @@ impl Identity {
         &self.public_key
     }
 
+    /// The public key as a [W3C Multikey][mk]: base58btc, `z`-prefixed, over
+    /// the multicodec code for ML-DSA-65 followed by the key bytes.
+    ///
+    /// This is the interoperable form. `public_key()` returns raw bytes, which
+    /// say nothing about which algorithm produced them; a Multikey names the
+    /// algorithm in-band, so a verifier that has never seen this SDK can decode
+    /// it and know what it is holding.
+    ///
+    /// The code is `0x1211`, which is registered upstream in the
+    /// [multicodec table][mc] for ML-DSA-65, so nothing here is private-use.
+    ///
+    /// [mk]: https://www.w3.org/TR/controller-document/#multikey
+    /// [mc]: https://github.com/multiformats/multicodec
+    pub fn public_key_multibase(&self) -> String {
+        multikey(&self.public_key)
+    }
+
     /// Sign a message.
     ///
     /// Deterministic, per FIPS 204: signing the same message twice produces the
@@ -494,19 +546,27 @@ impl Identity {
 
     /// Recover an identity from any three valid shares of one recovery set.
     ///
-    /// Each [`RecoveryShare`] carries its set's Merkle root. The component
-    /// verifies inclusion paths against that root before reconstructing the
-    /// sealed identity blob, which is then restored through the canonical
-    /// [`Identity::open_sealed`] path.
+    /// `expected_root` is trusted authentication metadata retained separately
+    /// from the untrusted shares, such as in a keychain or an authenticated
+    /// recovery record. It must not be sourced from the share bundle supplied
+    /// to this method. The component verifies every inclusion path against it
+    /// before reconstructing the sealed identity blob, which is then restored
+    /// through the canonical [`Identity::open_sealed`] path.
     pub fn recover_from_shares(
         shares: &[RecoveryShare],
+        expected_root: &[u8; 32],
         sealing_key: &[u8],
     ) -> Result<Self, Error> {
-        let root = shares
-            .first()
-            .ok_or(Error::InvalidRecoveryMaterial("no shares supplied"))?
-            .merkle_root;
-        if shares.iter().any(|share| share.merkle_root != root) {
+        if shares.is_empty() {
+            return Err(Error::InvalidRecoveryMaterial("no shares supplied"));
+        }
+        if shares.len() > HTSS_TOTAL_SHARES {
+            return Err(Error::Component(IdentityError::InvalidShareSet));
+        }
+        if shares
+            .iter()
+            .any(|share| !bool::from(share.merkle_root.ct_eq(expected_root)))
+        {
             return Err(Error::InvalidRecoveryMaterial(
                 "shares belong to different recovery sets",
             ));
@@ -522,7 +582,7 @@ impl Identity {
         let (mut store, bindings) = component::load()?;
         let mut sealed = bindings
             .aethel_core_secret_sharing()
-            .call_htss_reconstruct(&mut store, &component_shares, &root)??;
+            .call_htss_reconstruct(&mut store, &component_shares, expected_root)??;
         let identity = Self::open_sealed(&sealed, sealing_key);
         sealed.zeroize();
         identity

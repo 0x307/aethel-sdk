@@ -47,7 +47,12 @@ verbs on top of it:
   secret.
 - **HTSS recovery.** `Identity::split_for_recovery(sealing_key)` creates authenticated,
   recovery-sensitive 3-of-5 shares over the canonical sealed identity representation, and
-  `Identity::recover_from_shares(shares, sealing_key)` restores it.
+  `Identity::recover_from_shares(shares, expected_root, sealing_key)` restores it.
+- **Offline generation.** Creating an identity reaches nothing. Proven in CI rather than
+  asserted; see [Generation is offline](#generation-is-offline-and-that-is-proven).
+- **Interoperable public keys.** `Identity::public_key_multibase()` emits a W3C Multikey, so a
+  verifier that has never seen this SDK can decode the key and know which algorithm produced
+  it.
 - Nothing cryptographic is implemented in this crate, and nothing ever will be. Every
   cryptographic operation lives inside the component. That is the charter's L1 boundary: one
   artifact, embedded by every language, and adding a language never adds crypto.
@@ -56,9 +61,6 @@ verbs on top of it:
 
 - Predicate proofs over hidden attributes. See [What this cannot
   do](#what-this-cannot-do-yet)
-- Multikey encoding of the public key
-- Offline generation, proven by network isolation in CI
-- SAAP selective disclosure over named attributes
 - A ten-minute quickstart
 - A published security model
 - Publishing `0.x` to crates.io
@@ -69,7 +71,7 @@ See [ROADMAP.md](./ROADMAP.md) for the milestone sequence this is built in.
 
 ```toml
 [dependencies]
-aethel-sdk = "0.1"
+aethel-sdk = "0.3"
 ```
 
 ```rust
@@ -85,6 +87,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let signature = identity.sign(message)?;
     assert!(verify(identity.public_key(), message, &signature)?);
     assert!(!verify(identity.public_key(), b"something else", &signature)?);
+
+    // The interoperable form of the public key: base58btc over the multicodec
+    // code for ML-DSA-65. This is what goes in a DID document.
+    let multikey = identity.public_key_multibase();
+    assert!(multikey.starts_with('z'));
 
     // Persist it. `key` must be high-entropy key material, NOT a password.
     let key = b"a sealing key of thirty-two byte";
@@ -118,30 +125,42 @@ compiled into the crate.
 
 The embedded core currently provides authenticated, fixed-policy 3-of-5 HTSS. The SDK splits
 the identity's canonical sealed representation, rather than exposing its ML-DSA-65 signing key
-or PLP master seed: those raw secrets remain inside the component. Recovery therefore also
-needs the same high-entropy sealing key used to create the set.
+or PLP master seed: those raw secrets remain inside the component.
+
+> **Recovery requires three things:** a valid threshold of authenticated shares, the trusted
+> Merkle root for that recovery set, and the original high-entropy sealing key. HTSS protects
+> availability of the sealed identity blob; it does not replace the sealing key. Three shares
+> alone cannot open a recovered identity.
 
 ```rust
 use aethel_sdk::{Identity, RecoveryShareSet};
 
 let mut identity = Identity::generate()?;
 let recovery = identity.split_for_recovery(sealing_key)?;
+// Retain this root in an independent trusted location before accepting shares.
+let trusted_root = *recovery.merkle_root();
 
 // Save or transport the versioned recovery material over protected channels.
 let encoded = recovery.to_bytes();
 let decoded = RecoveryShareSet::from_bytes(&encoded)?;
 
 // Any three valid shares can restore the identity.
-let restored = Identity::recover_from_shares(&decoded.shares()[..3], sealing_key)?;
+let restored =
+    Identity::recover_from_shares(&decoded.shares()[..3], &trusted_root, sealing_key)?;
 assert_eq!(restored.public_key(), identity.public_key());
 # Ok::<(), aethel_sdk::identity::Error>(())
 ```
 
-Every serialized share and share set carries the Merkle root required by core's authenticated
-reconstruction. Keep that root associated with its shares; it authenticates membership in the
-set, but it is not a confidentiality mechanism. Recovery shares and their encoded bytes are
-recovery-sensitive material: protect them with access control and transport encryption, and do
-not publish them or print them in logs.
+The version-1 serialized format includes a claimed Merkle root for compatibility, but serialized
+shares are untrusted recovery inputs. Retain the authentication root separately, in an independent
+trusted location or channel, and pass that root explicitly to recovery. A caller-supplied share
+set cannot authenticate itself by supplying its own root: storing the root and every share in the
+same untrusted store removes substitution protection.
+
+Recovery shares and their encoded bytes are recovery-sensitive material: protect them with access
+control and transport encryption, and do not publish them or print them in logs. Do not mix shares
+from different `aethel-core` versions in one reconstruction: 0X3-112 introduced V2 coefficient
+derivation and changed every share value, so recovery sets are not cross-version interoperable.
 
 ## Contextual projection
 
@@ -165,13 +184,15 @@ same projection byte-for-byte, so it contributes no new independent sample. Pref
 
 The projection exposes only padded context, public salt, and public coefficients; the component
 keeps the master secret. That non-exposure is an API property, not a standalone proof of the
-underlying construction's security. Run the complete worked example with:
+underlying construction's security.
 
 Under aethel-core's stated M-LWE security assumptions, the master secret is not derivable from
 any number of projections produced with fresh, secret randomness. Each projection's
 salt-derived context matrix prevents same-context projections from sharing the matrix required
 by the historical averaging attack. This is a cryptographic property of aethel-core's
 construction; SDK tests cover observable non-exposure proxies, not non-derivability.
+
+Run the complete worked example with:
 
 ```bash
 cargo run --example projection
@@ -182,6 +203,43 @@ cargo run --example projection
 `verify` returns `Ok(false)` for a signature that does not verify and an error only for input
 it could not process. Those are different answers on purpose. Treating an error as "invalid"
 is the mistake that makes malformed input look like a failed check.
+
+### What is and is not claimed about timing
+
+`aethel-core` compares authentication-bearing bytes in constant time, in its `ct_verify.rs`.
+Every comparison that decides whether something verifies happens down there, inside the
+component: this crate passes the signature, the proof and the key across the boundary and
+returns the answer the component gives it. It never compares them itself.
+
+That is the whole of the claim. **This is not a statement that the SDK, the host runtime, or
+your application is constant-time end to end.** wasmtime's compilation and execution, your
+allocator, and anything you do with the result are all outside it, and a serious side-channel
+posture would have to account for them. What is claimed is narrower and worth stating on its
+own: the ergonomic layer does not undo the work the core already did.
+
+Keeping it that way is enforced rather than intended. `scripts/check-comparisons.sh` runs in
+CI and fails on any equality comparison in `src/` that is not in
+`scripts/allowed-comparisons.txt` with a written reason. The three currently listed are a
+build-metadata key name, the embedded component's published hash, and a public attribute
+name. A new `==` on a signature, a proof, or key material fails the build until somebody
+looks at it.
+
+### Generation is offline, and that is proven
+
+`Identity::generate()` makes no network call. Neither does anything under it: the component is
+compiled into the crate rather than fetched, and the key is derived inside it.
+
+That is a claim worth more than an assurance, so CI proves it by denying the capability rather
+than by asserting about it. The `offline generation (network-isolated)` job builds the test
+binaries with network available, then runs the suite again inside a network namespace with no
+interface. Generation has to keep working there.
+
+The half that makes it evidence is the negative control. `tests/network_isolation_negative_control.rs`
+deliberately opens a TCP connection to `1.1.1.1:443`, and the job requires that test to **fail**
+inside the isolated step. An in-process "am I offline?" assertion can only see the paths it
+knows to instrument, and this crate has a WebAssembly runtime underneath it; if the isolation
+ever silently stopped being applied, a suite that merely passes would look identical. A control
+that must fail is what tells the two apart.
 
 ### Verifying more than occasionally
 

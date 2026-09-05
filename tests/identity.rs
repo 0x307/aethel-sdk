@@ -13,6 +13,21 @@ const ENTROPY: &[u8; 32] = b"deterministic entropy for tests!";
 const OTHER_ENTROPY: &[u8; 32] = b"a completely different entropy!!";
 const RECOVERY_KEY: &[u8] = b"a recovery sealing key, 32 bytes";
 
+fn recovery_share_offset(bytes: &[u8], share_offset: usize) -> usize {
+    let value_length = u32::from_le_bytes(
+        bytes[share_offset + 1..share_offset + 5]
+            .try_into()
+            .unwrap(),
+    ) as usize;
+    let path_length_offset = share_offset + 5 + value_length;
+    let path_length = u32::from_le_bytes(
+        bytes[path_length_offset..path_length_offset + 4]
+            .try_into()
+            .unwrap(),
+    ) as usize;
+    path_length_offset + 4 + path_length
+}
+
 #[test]
 fn generate_produces_an_identity_with_a_public_key() {
     let id = Identity::generate().expect("generate");
@@ -194,8 +209,12 @@ fn recovery_uses_real_identity_material_and_recovers_identity() {
         .split_for_recovery(RECOVERY_KEY)
         .expect("split identity for recovery");
 
-    let mut restored =
-        Identity::recover_from_shares(&recovery.shares()[..3], RECOVERY_KEY).expect("recover");
+    let mut restored = Identity::recover_from_shares(
+        &recovery.shares()[..3],
+        recovery.merkle_root(),
+        RECOVERY_KEY,
+    )
+    .expect("recover");
     assert_eq!(restored.public_key(), public_key);
     let message = b"signature from recovered identity";
     let signature = restored.sign(message).expect("sign");
@@ -210,8 +229,12 @@ fn threshold_shares_reconstruct_identity() {
         .split_for_recovery(RECOVERY_KEY)
         .expect("split identity for recovery");
 
-    let restored =
-        Identity::recover_from_shares(&recovery.shares()[..3], RECOVERY_KEY).expect("recover");
+    let restored = Identity::recover_from_shares(
+        &recovery.shares()[..3],
+        recovery.merkle_root(),
+        RECOVERY_KEY,
+    )
+    .expect("recover");
     assert_eq!(restored.public_key(), public_key);
 }
 
@@ -224,7 +247,11 @@ fn below_threshold_shares_fail() {
         .split_for_recovery(RECOVERY_KEY)
         .expect("split identity for recovery");
 
-    match Identity::recover_from_shares(&recovery.shares()[..2], RECOVERY_KEY) {
+    match Identity::recover_from_shares(
+        &recovery.shares()[..2],
+        recovery.merkle_root(),
+        RECOVERY_KEY,
+    ) {
         Err(Error::Component(
             aethel_sdk::component::aethel::core::types::IdentityError::ThresholdNotMet,
         )) => {}
@@ -243,8 +270,10 @@ fn recovery_share_set_serialization_round_trips() {
 
     let encoded = recovery.to_bytes();
     let decoded = RecoveryShareSet::from_bytes(&encoded).expect("decode recovery material");
+    let trusted_root = *recovery.merkle_root();
     let restored =
-        Identity::recover_from_shares(&decoded.shares()[..3], RECOVERY_KEY).expect("recover");
+        Identity::recover_from_shares(&decoded.shares()[..3], &trusted_root, RECOVERY_KEY)
+            .expect("recover");
     assert_eq!(restored.public_key(), public_key);
 }
 
@@ -259,15 +288,121 @@ fn losing_one_share_above_threshold_still_recovers() {
 
     let first = Identity::recover_from_shares(
         &[shares[0].clone(), shares[1].clone(), shares[2].clone()],
+        recovery.merkle_root(),
         RECOVERY_KEY,
     )
     .expect("recover from initial threshold subset");
     let after_loss = Identity::recover_from_shares(
         &[shares[0].clone(), shares[1].clone(), shares[3].clone()],
+        recovery.merkle_root(),
         RECOVERY_KEY,
     )
     .expect("recover after third share unavailable");
 
     assert_eq!(first.public_key(), public_key);
     assert_eq!(after_loss.public_key(), public_key);
+}
+
+/// The trusted root remains fixed while the entire untrusted share set changes.
+/// A set generated for another identity cannot authenticate itself by bringing
+/// along its own root.
+#[test]
+fn recovery_rejects_wholesale_substituted_share_set() {
+    let mut original = Identity::from_entropy(ENTROPY).expect("generate original");
+    let recovery_a = original
+        .split_for_recovery(RECOVERY_KEY)
+        .expect("split original identity");
+    let trusted_root_a = *recovery_a.merkle_root();
+
+    let restored =
+        Identity::recover_from_shares(&recovery_a.shares()[..3], &trusted_root_a, RECOVERY_KEY)
+            .expect("control recovery");
+    assert_eq!(restored.public_key(), original.public_key());
+
+    let mut attacker = Identity::from_entropy(OTHER_ENTROPY).expect("generate attacker");
+    let recovery_b = attacker
+        .split_for_recovery(RECOVERY_KEY)
+        .expect("split attacker identity");
+    assert!(
+        Identity::recover_from_shares(&recovery_b.shares()[..3], &trusted_root_a, RECOVERY_KEY)
+            .is_err(),
+        "attacker shares authenticated against their own root"
+    );
+}
+
+/// Only one authenticated value byte changes; the trusted root, indices,
+/// threshold-sized set, sealing key, and every other share remain fixed.
+#[test]
+fn recovery_rejects_fabricated_share_content() {
+    let mut original = Identity::from_entropy(ENTROPY).expect("generate");
+    let recovery = original
+        .split_for_recovery(RECOVERY_KEY)
+        .expect("split identity");
+    let trusted_root = *recovery.merkle_root();
+
+    Identity::recover_from_shares(&recovery.shares()[..3], &trusted_root, RECOVERY_KEY)
+        .expect("control recovery");
+
+    let mut encoded = recovery.to_bytes();
+    let first_value_offset = 4 + 1 + 1 + 32 + 1 + 4;
+    encoded[first_value_offset] ^= 1;
+    let tampered = RecoveryShareSet::from_bytes(&encoded).expect("decode modified share value");
+    match Identity::recover_from_shares(&tampered.shares()[..3], &trusted_root, RECOVERY_KEY) {
+        Err(Error::Component(
+            aethel_sdk::component::aethel::core::types::IdentityError::InvalidShareSet,
+        )) => {}
+        Err(other) => panic!("expected invalid-share-set, got {other:?}"),
+        Ok(_) => panic!("fabricated share content recovered an identity"),
+    }
+}
+
+/// Only the second share's index is changed to duplicate the first. The same
+/// value, path, root, count, threshold, and sealing key are otherwise used.
+#[test]
+fn recovery_rejects_duplicate_share_index_as_invalid_share_set() {
+    let mut original = Identity::from_entropy(ENTROPY).expect("generate");
+    let recovery = original
+        .split_for_recovery(RECOVERY_KEY)
+        .expect("split identity");
+    let trusted_root = *recovery.merkle_root();
+
+    Identity::recover_from_shares(&recovery.shares()[..3], &trusted_root, RECOVERY_KEY)
+        .expect("control recovery");
+
+    let mut encoded = recovery.to_bytes();
+    let first_share_offset = 4 + 1 + 1 + 32;
+    let second_share_offset = recovery_share_offset(&encoded, first_share_offset);
+    encoded[second_share_offset] = encoded[first_share_offset];
+    let duplicated = RecoveryShareSet::from_bytes(&encoded).expect("decode duplicate index");
+    match Identity::recover_from_shares(&duplicated.shares()[..3], &trusted_root, RECOVERY_KEY) {
+        Err(Error::Component(
+            aethel_sdk::component::aethel::core::types::IdentityError::InvalidShareSet,
+        )) => {}
+        Err(other) => panic!("expected invalid-share-set, got {other:?}"),
+        Ok(_) => panic!("duplicate-index shares recovered an identity"),
+    }
+}
+
+/// The attack changes only the supplied set's size. The SDK must enforce the
+/// declared five-share bound even for in-memory shares that bypass decoding.
+#[test]
+fn recovery_rejects_more_shares_than_the_scheme_issues() {
+    let mut original = Identity::from_entropy(ENTROPY).expect("generate");
+    let recovery = original
+        .split_for_recovery(RECOVERY_KEY)
+        .expect("split identity");
+    let trusted_root = *recovery.merkle_root();
+
+    Identity::recover_from_shares(&recovery.shares()[..3], &trusted_root, RECOVERY_KEY)
+        .expect("control recovery");
+
+    let mut oversized = recovery.shares().to_vec();
+    oversized.push(recovery.shares()[0].clone());
+    match Identity::recover_from_shares(&oversized, &trusted_root, RECOVERY_KEY) {
+        Err(Error::Component(
+            aethel_sdk::component::aethel::core::types::IdentityError::InvalidShareSet,
+        )) => {}
+        Err(other) => panic!("expected invalid-share-set, got {other:?}"),
+        Ok(_) => panic!("oversized share set recovered an identity"),
+    }
 }
