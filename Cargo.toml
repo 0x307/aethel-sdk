@@ -25,6 +25,7 @@ include = [
     "scripts/sync-core.sh",
     "README.md",
     "CHANGELOG.md",
+    "SECURITY-MODEL.md",
     "LICENSE",
     "NOTICE",
 ]

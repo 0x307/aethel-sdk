@@ -64,6 +64,13 @@ document for what counts as breaking inside `0.x`.
 
 ### Security
 
+- `SECURITY-MODEL.md`, the published security model. It states what this crate claims and how
+  each claim is checked, what the caller is responsible for (the sealing key as a single point
+  of failure, storing the HTSS root apart from the shares, projection randomness, that
+  authenticated is not confidential, entropy quality), and what is out of scope (side channels
+  above L1, physical attacks, `aethel-runtime`, predicate proofs, and the correctness of
+  `aethel-core`'s constructions). It says in its second paragraph that there has been no
+  third-party audit, and it records why 0.1.0 and 0.1.5 were yanked.
 - The narrow timing claim is now written down and enforced. `aethel-core` compares
   authentication-bearing bytes in constant time in `ct_verify.rs`, and this crate must not
   undo that with a plain `==` on a signature, a proof, or key material. Every comparison that

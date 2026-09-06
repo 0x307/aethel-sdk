@@ -1,5 +1,9 @@
 # Security Policy
 
+This document is how to report a vulnerability. For what the library claims, how each claim is
+checked, and what it explicitly does not claim, see
+[`SECURITY-MODEL.md`](./SECURITY-MODEL.md).
+
 ## Reporting a vulnerability
 
 Email **security@0x307.com**. This address is monitored and routes to a human — not a
