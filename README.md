@@ -61,7 +61,8 @@ verbs on top of it:
 
 - Predicate proofs over hidden attributes. See [What this cannot
   do](#what-this-cannot-do-yet)
-- A ten-minute quickstart
+- A quickstart proven to work cold. One is written and run in CI; nobody who has not worked on
+  this SDK has followed it on a clean machine and been timed.
 
 See [ROADMAP.md](./ROADMAP.md) for the milestone sequence this is built in.
 

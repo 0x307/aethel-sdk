@@ -7,9 +7,10 @@ dropped as real implementation work surfaces things this list can't see yet. Wha
 the destination — an ergonomic Rust SDK over `aethel-core`'s post-quantum identity
 primitives — not the path.
 
-Four of the milestones below are done, and this list said "nothing below is implemented yet"
-for long enough after that stopped being true that it was actively misleading. The four are
-marked **(shipped)**. The rest are still ahead of us — see the README's "what runs today vs.
+Six of the milestones below are done and are marked **(shipped)**. This list once said
+"nothing below is implemented yet" for long enough after that stopped being true that it was
+actively misleading, and then said "four" for a while after it was six, so treat the count as
+the thing most likely to be stale here. The rest are still ahead of us — see the README's "what runs today vs.
 what is designed" section for the authoritative current split.
 
 ## Embed the core (shipped)
@@ -76,18 +77,23 @@ by design, so the sealed representation is the only thing above L1 there is to s
 therefore needs the sealing key as well as a threshold of shares, and the authenticating Merkle
 root has to be supplied separately from the shares rather than read out of them.
 
-## Quickstart (shipped, minus `project`)
+## Quickstart (written, not yet validated cold)
 
 A quickstart that works copy-pasted, end to end, in under ten minutes, on a machine that
 isn't the author's — covering generate, sign, verify, project, and disclose, with every code
 block actually run as part of producing it. This is treated as the single highest-leverage
 artifact for adoption: if it doesn't work pasted cold, nothing else here matters as much.
 
-The README's quickstart covers generate, sign, verify, persist, and disclose end to end.
-`project` is the one step it can't show yet, because PLP contextual projection isn't built
-on this SDK's surface — see the milestone above.
+The README's quickstart covers generate, sign, verify, persist, and disclose end to end, and
+`examples/quickstart.rs` is the same code, run in CI so a broken quickstart fails the build
+rather than a reader's first five minutes. Contextual projection and threshold recovery have
+their own worked examples now that both are built.
 
-## Security model
+What is outstanding is the part that matters most and cannot be self-assessed: nobody who has
+not worked on this SDK has followed it cold, on a clean machine, and been timed. Until that
+happens this milestone is written rather than proven.
+
+## Security model (shipped)
 
 A short, honest threat-model document: what this SDK claims, what it explicitly does not
 claim, and — plainly — that it has not had a third-party audit. Published before crates.io,
