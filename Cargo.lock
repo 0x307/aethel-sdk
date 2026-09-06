@@ -45,6 +45,7 @@ dependencies = [
  "multibase",
  "pqc-sig",
  "sha2 0.10.9",
+ "subtle",
  "wasmtime",
  "zeroize",
 ]

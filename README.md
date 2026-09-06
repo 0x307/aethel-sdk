@@ -45,6 +45,9 @@ verbs on top of it:
 - **Contextual projection.** `Identity::project_at(context)` obtains fresh OS randomness for
   each call and returns public context-bound material without exposing the identity's master
   secret.
+- **HTSS recovery.** `Identity::split_for_recovery(sealing_key)` creates authenticated,
+  recovery-sensitive 3-of-5 shares over the canonical sealed identity representation, and
+  `Identity::recover_from_shares(shares, expected_root, sealing_key)` restores it.
 - **Offline generation.** Creating an identity reaches nothing. Proven in CI rather than
   asserted; see [Generation is offline](#generation-is-offline-and-that-is-proven).
 - **Interoperable public keys.** `Identity::public_key_multibase()` emits a W3C Multikey, so a
@@ -58,7 +61,6 @@ verbs on top of it:
 
 - Predicate proofs over hidden attributes. See [What this cannot
   do](#what-this-cannot-do-yet)
-- HTSS threshold recovery (split and recombine)
 - A ten-minute quickstart
 - A published security model
 - Publishing `0.x` to crates.io
@@ -118,6 +120,46 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 No network access is involved, and nothing is fetched at install time: the component is
 compiled into the crate.
+
+## Threshold recovery
+
+The embedded core currently provides authenticated, fixed-policy 3-of-5 HTSS. The SDK splits
+the identity's canonical sealed representation, rather than exposing its ML-DSA-65 signing key
+or PLP master seed: those raw secrets remain inside the component.
+
+> **Recovery requires three things:** a valid threshold of authenticated shares, the trusted
+> Merkle root for that recovery set, and the original high-entropy sealing key. HTSS protects
+> availability of the sealed identity blob; it does not replace the sealing key. Three shares
+> alone cannot open a recovered identity.
+
+```rust
+use aethel_sdk::{Identity, RecoveryShareSet};
+
+let mut identity = Identity::generate()?;
+let recovery = identity.split_for_recovery(sealing_key)?;
+// Retain this root in an independent trusted location before accepting shares.
+let trusted_root = *recovery.merkle_root();
+
+// Save or transport the versioned recovery material over protected channels.
+let encoded = recovery.to_bytes();
+let decoded = RecoveryShareSet::from_bytes(&encoded)?;
+
+// Any three valid shares can restore the identity.
+let restored =
+    Identity::recover_from_shares(&decoded.shares()[..3], &trusted_root, sealing_key)?;
+assert_eq!(restored.public_key(), identity.public_key());
+```
+
+The version-1 serialized format includes a claimed Merkle root for compatibility, but serialized
+shares are untrusted recovery inputs. Retain the authentication root separately, in an independent
+trusted location or channel, and pass that root explicitly to recovery. A caller-supplied share
+set cannot authenticate itself by supplying its own root: storing the root and every share in the
+same untrusted store removes substitution protection.
+
+Recovery shares and their encoded bytes are recovery-sensitive material: protect them with access
+control and transport encryption, and do not publish them or print them in logs. Do not mix shares
+from different `aethel-core` versions in one reconstruction: the V2 coefficient derivation
+changed every share value, so recovery sets are not interoperable across that change.
 
 ## Contextual projection
 

@@ -8,8 +8,8 @@
 //!
 //! This module loads and instantiates. It does not wrap the operations in
 //! anything ergonomic: [`crate::identity`] and [`crate::disclosure`] do that.
-//! Contextual projection and threshold recovery are not yet wrapped anywhere in
-//! this crate, though both are callable through the component.
+//! This module intentionally remains a low-level loader: ergonomic contextual
+//! projection and threshold recovery live in `crate::identity`.
 
 use crate::artifact::{self, IntegrityError};
 use std::sync::OnceLock;

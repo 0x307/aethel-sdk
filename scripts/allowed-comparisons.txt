@@ -25,3 +25,19 @@ src/artifact.rs	if actual == declared {
 # design in this API, which is the whole reason disclosure is expressed as
 # named attributes rather than a raw bitmask.
 src/disclosure.rs	.position(|n| n == name)
+
+# Checking the legacy recovery envelope's magic and version. These are public
+# structural parsing metadata, not authentication-bearing bytes.
+src/identity.rs	if bytes.len() < HEADER_BYTES || &bytes[..4] != b"ATHR" || bytes[4] != 1 {
+
+# Validating a public count field while parsing the legacy recovery envelope;
+# it is structural metadata, not authentication-bearing data.
+src/identity.rs	if count == 0 || count > 5 {
+
+# Rejecting trailing bytes after parsing the public recovery-envelope layout;
+# this is a structural format check, not an authentication comparison.
+src/identity.rs	if offset != bytes.len() {
+
+# Ensuring a single-share decoder received one public envelope entry; this is
+# a structural parsing count check, not authentication-bearing data.
+src/identity.rs	if set.shares.len() != 1 {
