@@ -63,12 +63,18 @@ Shipped as disclosure over a credential's own named attributes
 projection yet, since it was built before that milestone. Predicate proofs over a hidden
 attribute are also not implemented — see the README's "what this cannot do" section.
 
-## HTSS recovery
+## HTSS recovery (shipped)
 
 Threshold recovery: splitting real key material (not a placeholder integer) into shares,
 threshold recombination that reconstructs the identity, below-threshold shares that
 demonstrably fail to reconstruct, and shares that are documented as safe to serialize and
 transport. Losing one share above the threshold must not lose the identity.
+
+Shipped as `Identity::split_for_recovery()` and `Identity::recover_from_shares()`. What is
+split is the sealed identity blob, not the raw signing key: the component never returns that,
+by design, so the sealed representation is the only thing above L1 there is to split. Recovery
+therefore needs the sealing key as well as a threshold of shares, and the authenticating Merkle
+root has to be supplied separately from the shares rather than read out of them.
 
 ## Quickstart (shipped, minus `project`)
 

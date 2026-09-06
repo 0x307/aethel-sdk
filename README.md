@@ -148,7 +148,6 @@ let decoded = RecoveryShareSet::from_bytes(&encoded)?;
 let restored =
     Identity::recover_from_shares(&decoded.shares()[..3], &trusted_root, sealing_key)?;
 assert_eq!(restored.public_key(), identity.public_key());
-# Ok::<(), aethel_sdk::identity::Error>(())
 ```
 
 The version-1 serialized format includes a claimed Merkle root for compatibility, but serialized
@@ -159,8 +158,8 @@ same untrusted store removes substitution protection.
 
 Recovery shares and their encoded bytes are recovery-sensitive material: protect them with access
 control and transport encryption, and do not publish them or print them in logs. Do not mix shares
-from different `aethel-core` versions in one reconstruction: 0X3-112 introduced V2 coefficient
-derivation and changed every share value, so recovery sets are not cross-version interoperable.
+from different `aethel-core` versions in one reconstruction: the V2 coefficient derivation
+changed every share value, so recovery sets are not interoperable across that change.
 
 ## Contextual projection
 

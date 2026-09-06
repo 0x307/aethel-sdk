@@ -22,6 +22,19 @@ document for what counts as breaking inside `0.x`.
   public coefficients, and `to_bytes()` over the three of them.
 - `MIN_PROJECTION_RANDOMNESS_BYTES`.
 - `examples/projection.rs`, the worked example the README points at.
+- `Identity::split_for_recovery()` and `Identity::recover_from_shares()`, authenticated 3-of-5
+  HTSS recovery, with `RecoveryShare`, `RecoveryShareSet`, and the `InvalidRecoveryMaterial`
+  error. What is split is the sealed identity blob rather than the raw signing key: the
+  component never returns that, so the sealed representation is the only thing above L1 there
+  is to split. Recovery consequently needs the original sealing key as well as a threshold of
+  shares, which the README states up front.
+
+  `recover_from_shares` takes the authenticating Merkle root as its own argument. The
+  serialized envelope also carries a claimed root for transport, but that copy is treated as
+  untrusted: a share set that supplies its own root can authenticate itself, which is what
+  `aethel-core`'s `htss-split` documentation means when it says it does not vouch for the root.
+  The root must be retained separately and passed in. Substitution, fabricated share content,
+  duplicate indices, and oversized share sets are each rejected and each covered by a test.
 - `Identity::public_key_multibase()`, the public key as a W3C Multikey: base58btc over the
   registered ML-DSA-65 multicodec code and the key bytes. `public_key()` returns raw bytes
   that name no algorithm; a Multikey names it in-band, so a verifier that has never seen this
