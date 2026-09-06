@@ -7,7 +7,16 @@ adheres to the breaking-change and deprecation rules in
 [`STABILITY.md`](./STABILITY.md) rather than strict SemVer prior to `1.0.0` — see that
 document for what counts as breaking inside `0.x`.
 
-## [Unreleased]
+## [0.3.3] - 2026-09-06
+
+The first release whose version does not match the `aethel-core` it embeds. That is deliberate
+and is now policy: see [`STABILITY.md`](./STABILITY.md) section 6. The embedded revision is
+recorded in `core/pin.toml` and stated in every release entry, which identifies the pair more
+precisely than a matching number ever did. This release embeds `aethel-core` 0.3.2,
+`a09787d67a120f1d8a81b41755acf1e75c8f3289`, unchanged from 0.3.2.
+
+Four of the five verbs the SDK advertises now work: generate, sign and verify; project;
+disclose; and recover. The quickstart and predicate proofs are what remain.
 
 ### Added
 
@@ -61,6 +70,15 @@ document for what counts as breaking inside `0.x`.
   isolation working look identical from a passing suite. Mirrors `aethel-core`'s proof of the
   same property, deliberately: the core proves its generation reaches nothing, and this proves
   the SDK around it did not introduce a fetch.
+
+### Fixed
+
+- The published package now contains `examples/`. The README tells the reader to run
+  `cargo run --example projection` and `--example quickstart`, and neither was in the package,
+  so that instruction could not be followed from what crates.io served. `scripts/` now also
+  carries the comparison check and its allowlist, which `SECURITY-MODEL.md` names as the
+  enforcement behind the timing claim: a claim you cannot inspect from the package you
+  installed is worth less.
 
 ### Security
 
