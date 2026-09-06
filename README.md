@@ -62,8 +62,6 @@ verbs on top of it:
 - Predicate proofs over hidden attributes. See [What this cannot
   do](#what-this-cannot-do-yet)
 - A ten-minute quickstart
-- A published security model
-- Publishing `0.x` to crates.io
 
 See [ROADMAP.md](./ROADMAP.md) for the milestone sequence this is built in.
 
@@ -348,6 +346,10 @@ This project ships `0.x`. See [`STABILITY.md`](./STABILITY.md) for what counts a
 change, deprecation notice, release cadence, and support posture.
 
 ## Security
+
+[`SECURITY-MODEL.md`](./SECURITY-MODEL.md) states what this crate claims, how each claim is
+checked, what you are responsible for, and what is out of scope. It says up front that there
+has been no third-party audit. Read it before depending on this for anything that matters.
 
 See [`SECURITY.md`](./SECURITY.md) to report a vulnerability.
 
