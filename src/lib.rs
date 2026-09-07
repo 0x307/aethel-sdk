@@ -23,6 +23,30 @@
 //! # }
 //! ```
 //!
+//! # Read this before the feature list
+//!
+//! Two limits decide whether this crate is usable for what you have in mind,
+//! and both are easy to miss because everything else here works.
+//!
+//! **Disclosed attributes are self-asserted.** A verified presentation proves
+//! the disclosed values open under an issuer's public parameters. It does not
+//! prove an issuer authorised them. Those parameters are published, and a
+//! holder must hold them to present at all, so anyone can build a credential
+//! over their own identity with attributes of their choosing and it will
+//! verify. If you need "the issuer said this" rather than "the holder says this
+//! and the shape is right", this is not that yet. See
+//! [`verify_presentation`] and `docs/ISSUER-AUTHENTICATION.md` in `aethel-core`.
+//!
+//! **A presentation cannot leave the process that made it.** [`Presentation`]
+//! has no serialised form, so holder and verifier are the same process today.
+//!
+//! Neither is a limit of the underlying cryptography. Both are places the
+//! surface is unfinished, and they are stated here rather than on the type
+//! pages because they determine whether the feature list below is worth
+//! reading. What does work stands on its own: post-quantum signing, sealed
+//! persistence, threshold recovery, and context-bound projections that are
+//! unlinkable across contexts.
+//!
 //! Fuller worked examples are in `examples/` in the published package:
 //! `quickstart.rs` (generate, sign, verify, persist, disclose), `projection.rs`,
 //! and `bench_verify.rs`. Run them with `cargo run --example quickstart` from a
@@ -42,10 +66,32 @@
 //! will not build for a browser. The identity operations still all happen inside
 //! WebAssembly; it is the runtime executing them that has to be native.
 //!
+//! # What you are responsible for
+//!
+//! Each of these can be got wrong while every call returns `Ok`:
+//!
+//! - **The sealing key is a single point of failure.** Lose it and the identity
+//!   is gone, including from a full set of recovery shares. It must be
+//!   high-entropy key material, never a password.
+//! - **Keep the HTSS Merkle root apart from the shares.** A store that holds
+//!   both can substitute an entire recovery set.
+//! - **Projection randomness must be fresh and secret**, and never derived from
+//!   the context. [`Identity::project_at`] does this for you.
+//! - **Disclosed attributes are self-asserted**, as above.
+//! - **Entropy quality is yours.** Generation is deterministic in its entropy,
+//!   so weak entropy means a predictable identity, and the component cannot
+//!   tell the difference.
+//!
+//! Out of scope, stated plainly: there has been **no third-party audit**; side
+//! channels above L1 (wasmtime, your allocator, your application) are not
+//! covered; physical and hardware attacks are not covered; and the security of
+//! the constructions rests on `aethel-core`'s stated assumptions rather than on
+//! anything this crate's tests can prove.
+//!
 //! [`SECURITY-MODEL.md`](https://github.com/0x307/aethel-sdk/blob/main/SECURITY-MODEL.md)
-//! states what this crate claims, how each claim is checked, what you are
-//! responsible for, and what is out of scope. It ships in this package. Read it
-//! before depending on this for anything that matters.
+//! is the long form of this section, with how each claim is checked. It ships
+//! in this package, so it is in the crate you installed even when you are
+//! reading these docs online.
 //!
 //! # What runs today
 //!
@@ -130,7 +176,10 @@ pub mod disclosure;
 pub mod verifier;
 
 #[cfg(not(target_arch = "wasm32"))]
-pub use disclosure::{verify_presentation, Credential, IssuerPublicParameters, Presentation};
+pub use disclosure::{
+    verify_presentation, Credential, IssuerPublicParameters, Presentation, MAX_ATTRIBUTES,
+    MIN_ISSUER_SEED_BYTES,
+};
 
 #[cfg(not(target_arch = "wasm32"))]
 pub use identity::{verify, Identity, Projection, RecoveryShare, RecoveryShareSet};

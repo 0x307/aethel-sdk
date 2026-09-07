@@ -54,8 +54,21 @@ mod alloc_shim {
     pub use std::collections::BTreeMap;
 }
 
-/// Attribute slots a credential can carry.
+/// Attribute slots a credential can carry: 8.
+///
+/// Issuing over more than this is [`Error::TooManyAttributes`]. A credential
+/// always occupies all eight internally; the ones you did not issue over are
+/// padded, and neither [`Credential::attribute_names`] nor disclosure by name
+/// can see them.
 pub const MAX_ATTRIBUTES: usize = 8;
+
+/// Minimum issuer seed length: 32 bytes.
+///
+/// The component refuses anything shorter. As with [`crate::MIN_SEAL_KEY_BYTES`],
+/// the length is enforced and the quality of the bytes is not: a low-entropy
+/// seed satisfies this and still gives away the issuer's whole authority to
+/// anyone who guesses it.
+pub const MIN_ISSUER_SEED_BYTES: usize = 32;
 
 /// Bytes of randomness the component requires for each of its inputs.
 const RANDOMNESS_BYTES: usize = 32;
@@ -150,9 +163,9 @@ fn slot_flag(slot: usize) -> DisclosureAttributes {
 ///
 /// **This type has no serialised form yet.** It is described as what the holder
 /// sends, and in a deployment it would have to travel between processes, but
-/// there is no `to_bytes`/`from_bytes` on it the way there is on
-/// [`crate::Projection`], [`crate::RecoveryShare`] and
-/// [`crate::RecoveryShareSet`]. Today a presentation can only be verified in the
+/// there is no encoding on it at all, the way [`crate::RecoveryShare`] and
+/// [`crate::RecoveryShareSet`] have `to_bytes`/`from_bytes` and
+/// [`crate::Projection`] has `to_bytes`. Today a presentation can only be verified in the
 /// process that produced it. Combined with the issuer-seed limitation in the
 /// crate documentation, cross-party disclosure is not yet deployable; both are
 /// tracked, and neither is a limitation of the underlying construction.
@@ -206,6 +219,12 @@ impl Identity {
     /// under the issuer's public parameters. It is exposed here because
     /// `aethel-core` has no issuer key management yet, and a caller should know
     /// that this is the whole of the issuer's authority.
+    /// Attribute values are `u64`. There is no encoding for strings or
+    /// structured values: the component's relation is arithmetic over field
+    /// elements, so a name or a country code has to be mapped to a number by
+    /// the caller, and both issuer and verifier have to agree on that mapping
+    /// out of band. `issuer_seed` must be at least
+    /// [`MIN_ISSUER_SEED_BYTES`].
     pub fn issue_credential(
         &mut self,
         issuer_seed: &[u8],
@@ -388,11 +407,28 @@ impl core::fmt::Debug for IssuerPublicParameters {
 
 /// Verify a presentation against an issuer's public parameters.
 ///
-/// Returns `Ok(false)` for a well-formed presentation that does not verify.
+/// Returns `Ok(false)` for a well-formed presentation that does not verify, and
+/// an error only when the input could not be processed at all.
 ///
-/// This takes [`IssuerPublicParameters`], not the issuer seed. A verifier needs
-/// no secret, so a public verifying endpoint is possible: it was not before,
-/// because verification used to require the seed that issues.
+/// # What `Ok(true)` does and does not mean
+///
+/// It means: the disclosed values are the ones committed to, the presentation
+/// opens under the issuer parameters you supplied, and it is bound to the
+/// context you passed and to the holder's projection.
+///
+/// It does **not** mean an issuer vouched for those values. The relation checks
+/// that the presentation opens to a short preimage under the parameters; it does
+/// not check that anyone authorised the attributes, and a holder must hold the
+/// parameters to present at all. So a holder can build a credential over their
+/// own identity with attributes of their choosing and it will verify here.
+/// **Treat disclosed attributes as self-asserted** unless something outside this
+/// library tells you otherwise.
+///
+/// This takes [`IssuerPublicParameters`], not the issuer seed, so a verifier
+/// holds no secret and a compromised verifier cannot issue against anyone else's
+/// identity. That is what the split buys. It does not yet buy a remote verifier:
+/// [`Presentation`] has no serialised form, so a presentation can only be
+/// verified in the process that produced it.
 pub fn verify_presentation(
     issuer: &IssuerPublicParameters,
     presentation: &Presentation,
