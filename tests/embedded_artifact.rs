@@ -121,3 +121,37 @@ fn the_pinned_revision_is_a_full_commit_sha() {
         "pinned rev is not hex: {rev}"
     );
 }
+
+/// The dev-dependency revision must equal the vendored revision.
+///
+/// `tests/component_execution.rs` claims it compares the embedded component
+/// against "aethel-core's native API at the same pinned revision". That claim is
+/// only true if `Cargo.toml`'s `rev` and `core/pin.toml`'s `rev` agree, and
+/// nothing enforced it: `scripts/sync-core.sh` rewrites `pin.toml` and leaves
+/// `Cargo.toml` alone. They drifted at the 0.4.0 migration, so for one release
+/// the execution proof compared a 0.4.0 component against 0.3.2's native API and
+/// passed, which made it a weaker check than it advertised.
+#[test]
+fn the_dev_dependency_matches_the_vendored_revision() {
+    let manifest = include_str!("../Cargo.toml");
+    let pin = include_str!("../core/pin.toml");
+
+    let field = |text: &str, key: &str| -> String {
+        text.lines()
+            .find(|line| line.trim_start().starts_with(key) || line.contains("aethel-core = {"))
+            .and_then(|line| line.split("rev = \"").nth(1))
+            .and_then(|rest| rest.split('"').next())
+            .unwrap_or_else(|| panic!("no rev found for {key}"))
+            .to_string()
+    };
+
+    let vendored = field(pin, "rev");
+    let dev_dependency = field(manifest, "aethel-core");
+
+    assert_eq!(
+        vendored, dev_dependency,
+        "core/pin.toml vendors {vendored} but the aethel-core dev-dependency is pinned to \
+         {dev_dependency}; the execution proof would compare the component against a different \
+         revision's native API"
+    );
+}

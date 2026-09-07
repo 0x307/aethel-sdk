@@ -1,6 +1,6 @@
 [package]
 name = "aethel-sdk"
-version = "0.5.1"
+version = "0.5.2"
 edition = "2021"
 description = "Ergonomic Rust SDK over aethel-core's post-quantum identity primitives: generate, sign, verify, project, disclose, recover"
 authors = ["Ed Johnson"]
@@ -80,8 +80,18 @@ wasmtime = { version = "48.0.1", default-features = false, features = ["runtime"
 # The execution proof compares the component against aethel-core's native API at
 # the same pinned revision. It is a dev-dependency: this crate never calls
 # aethel-core directly at runtime, it calls the component.
+#
+# `rev` MUST equal the one in core/pin.toml, or the proof compares the vendored
+# component against a different revision's native API while claiming otherwise.
+# scripts/sync-core.sh rewrites pin.toml and not this line, so they drifted once
+# already; the_dev_dependency_matches_the_vendored_revision in
+# tests/embedded_artifact.rs now fails if they disagree.
+#
+# `version` matters only at publish time: cargo drops the git source when
+# packaging and resolves this requirement against crates.io, so a stale one
+# fails `cargo publish` long after the local build stopped caring.
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
-aethel-core = { version = "0.3", git = "https://github.com/0x307/aethel-core", rev = "a09787d67a120f1d8a81b41755acf1e75c8f3289" }
+aethel-core = { version = "0.4", git = "https://github.com/0x307/aethel-core", rev = "d01258563c7aaf99226b428793873d968180e99f" }
 
 [dev-dependencies]
 # Independent verifiers for the Multikey encoding, used only by
