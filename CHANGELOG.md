@@ -7,6 +7,27 @@ adheres to the breaking-change and deprecation rules in
 [`STABILITY.md`](./STABILITY.md) rather than strict SemVer prior to `1.0.0` — see that
 document for what counts as breaking inside `0.x`.
 
+## [0.5.2] - 2026-09-07
+
+### Fixed
+
+- **The `aethel-core` dev-dependency was still pinned to the 0.3.2 revision after 0.5.0 vendored
+  0.4.0.** `tests/component_execution.rs` says it compares the embedded component against
+  "aethel-core's native API at the same pinned revision"; for one release that was not true, and
+  it compared a 0.4.0 component against 0.3.2's native API and passed. `scripts/sync-core.sh`
+  rewrites `core/pin.toml` and does not touch `Cargo.toml`, and nothing checked that they
+  agreed.
+
+  `the_dev_dependency_matches_the_vendored_revision` in `tests/embedded_artifact.rs` now fails
+  when they disagree. Verified by pointing the pin at a different revision of the same version,
+  which is the drift cargo cannot catch on its own.
+
+- **`cargo publish` failed** because the same dev-dependency asked for `aethel-core = "0.3"`
+  while every 0.3.x had been yanked upstream. Publishing drops the git source and resolves the
+  version requirement against crates.io, so a requirement that stopped matching the pinned
+  revision goes unnoticed locally and only surfaces at publish. Now `"0.4"`, matching what is
+  vendored.
+
 ## [0.5.1] - 2026-09-07
 
 Documentation, from a second blind test against the published 0.5.0. One reader built against
