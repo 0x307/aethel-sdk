@@ -50,6 +50,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // ---- setup, not measured ------------------------------------------------
     let issuer_seed = b"the issuer's secret seed, 32 byte";
+    // Verification takes the public half now. Derived once, then held.
+    let issuer_params =
+        aethel_sdk::IssuerPublicParameters::derive(issuer_seed).expect("derive issuer parameters");
     let context = b"checkout-session";
 
     let mut identity = Identity::generate()?;
@@ -62,7 +65,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let presentation = identity.present(&credential, context, &["tier"])?;
 
     // Sanity: the thing we are timing must actually succeed.
-    assert!(verify_presentation(issuer_seed, &presentation, context)?);
+    assert!(verify_presentation(&issuer_params, &presentation, context)?);
     assert!(verify(&public_key, message, &signature)?);
 
     // ---- 1. compile vs instantiate -----------------------------------------
@@ -82,7 +85,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // ---- 2. verifier operations, end to end (load + crypto) ----------------
     println!("\n-- verifier path as SAGP would call it today --");
     let e2e_pres = bench("verify_presentation()  [load + crypto]", 20, || {
-        let ok = verify_presentation(issuer_seed, &presentation, context).expect("verify");
+        let ok = verify_presentation(&issuer_params, &presentation, context).expect("verify");
         assert!(ok);
     });
     let e2e_sig = bench("verify()               [load + crypto]", 20, || {
@@ -98,7 +101,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let verifier = Verifier::new()?;
     let verifier_pres = bench("Verifier::verify_presentation()", 20, || {
         let ok = verifier
-            .verify_presentation(issuer_seed, &presentation, context)
+            .verify_presentation(&issuer_params, &presentation, context)
             .expect("verify");
         assert!(ok);
     });

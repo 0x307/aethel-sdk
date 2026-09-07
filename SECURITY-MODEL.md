@@ -78,6 +78,26 @@ path to use. `project_at_with_randomness` exists for reproducibility; its random
 be derived from the context or from identity data. Reusing it at one context is safe, because
 that carries no new sample to average. Deriving it deterministically is not.
 
+**Disclosed attributes are self-asserted.** This is the one most likely to be
+over-read, because selective disclosure sounds like it carries an issuer's word.
+It does not, yet. Verification checks that a presentation opens to a short
+preimage under the issuer's public parameters; it does not check that an issuer
+authorised the attribute values. A holder must hold those parameters in order to
+present at all, so any holder can construct a credential over their own identity
+with attributes of their choosing, and it will verify. What the separation of
+public parameters from the seed does buy is real but narrower: a verifier holds
+no secret, a verifier can be a public endpoint, and a compromised verifier cannot
+issue against anybody else's identity. If your deployment needs "the issuer said
+this" rather than "the holder says this and the shape is right", you need
+issuer-authenticated issuance, which is not shipped. `aethel-core`'s
+`docs/ISSUER-AUTHENTICATION.md` states the gap and the construction that closes
+it.
+
+**Issuer public parameters are publishable; the issuer seed is not.** Deriving
+the parameters from the seed is one-way, so publishing them does not leak the
+seed. The seed is the whole of the issuer's authority: whoever holds it can
+issue. Keep the two apart, and give verifiers only the parameters.
+
 **Authenticated is not confidential.** Recovery shares, sealed blobs, and the sealing key are
 all recovery-sensitive. Authentication stops substitution; it does nothing about disclosure.
 Protect them with access control and transport encryption, and keep them out of logs.

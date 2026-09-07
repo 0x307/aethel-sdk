@@ -15,11 +15,21 @@
 //!
 //! # What this can and cannot prove
 //!
-//! It can prove: *"I hold a credential issued by X, one of whose attributes is
-//! `tier = 3`"*, while revealing nothing about the other attributes. The
-//! verifier learns the disclosed values, learns that the credential was issued
-//! by the issuer they named, and learns that the holder is the identity whose
-//! projection they are checking against.
+//! It proves: *"I hold a credential that opens under issuer X's parameters, one
+//! of whose attributes is `tier = 3`"*, while revealing nothing about the other
+//! attributes. The verifier learns the disclosed values, learns that the
+//! presentation opens under the issuer parameters they supplied, and learns that
+//! the holder is the identity whose projection they are checking against.
+//!
+//! **"Opens under X's parameters" is weaker than "X issued this."** The
+//! verification relation checks that the presentation opens to a short preimage
+//! under the issuer's parameters. It does not check that an issuer authorised
+//! the attribute values, and a holder must hold those parameters to present at
+//! all, so a holder can construct a credential over their own identity with
+//! attributes of their choosing and it will verify. Treat disclosed attributes
+//! as self-asserted unless you have out-of-band reason not to. Closing this
+//! needs issuer-authenticated issuance, which is not shipped: see
+//! `docs/ISSUER-AUTHENTICATION.md` in `aethel-core`.
 //!
 //! **It cannot prove a predicate over a hidden value.** "Age is at least 21,
 //! without revealing the age" is the case people usually want, and it is not
@@ -297,18 +307,107 @@ impl Identity {
 /// context, so passing `presentation`'s own context back in would defeat the
 /// check rather than satisfy it.
 ///
+/// An issuer's public parameters: everything a verifier needs, and nothing that
+/// lets it issue.
+///
+/// Derive these once from the issuer seed with [`IssuerPublicParameters::derive`],
+/// publish the bytes, and give them to whoever verifies. Verification takes
+/// these; issuance takes the seed. They are different types here for the same
+/// reason they are different types in the component: so a verifier cannot be
+/// wired to the seed by accident.
+///
+/// # What holding these grants, and what it does not
+///
+/// Deriving them from a seed is one-way, so holding them does not let their
+/// holder issue credentials against someone else's identity, and a compromised
+/// verifier does not compromise the issuer.
+///
+/// What they do **not** give you is unforgeable attributes. The verification
+/// relation checks that a presentation opens to a short preimage under the
+/// issuer's parameters; it does not check that an issuer authorised the
+/// attribute values. Anyone holding these parameters can construct that opening
+/// over their own identity with attributes of their choosing, and it will
+/// verify. Holders must hold these to present at all, so in effect a holder can
+/// self-assert. Deployments where holders are not trusted to state their own
+/// attributes need issuer-authenticated issuance, which is not shipped: see
+/// `docs/ISSUER-AUTHENTICATION.md` in `aethel-core` for the gap and the
+/// construction that closes it.
+///
+/// Held as bytes rather than as a live component resource, because that is what
+/// these are for: publishing, storing, and handing to another process.
+#[derive(Clone, PartialEq, Eq)]
+pub struct IssuerPublicParameters {
+    bytes: Vec<u8>,
+}
+
+impl IssuerPublicParameters {
+    /// Derive the public parameters for the issuer identified by `issuer_seed`.
+    ///
+    /// The seed is the issuer's whole authority and does not leave this call.
+    pub fn derive(issuer_seed: &[u8]) -> Result<Self, Error> {
+        let (mut store, bindings) = crate::component::load()?;
+        let resource = bindings
+            .aethel_core_identity()
+            .issuer_public_parameters()
+            .call_derive(&mut store, issuer_seed)??;
+        let bytes = bindings
+            .aethel_core_identity()
+            .issuer_public_parameters()
+            .call_serialize(&mut store, resource)?;
+        Ok(Self { bytes })
+    }
+
+    /// Reconstruct published parameters. Round-trips with [`Self::as_bytes`].
+    ///
+    /// The bytes are checked by the component, so malformed input is an error
+    /// here rather than a confusing verification failure later.
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, Error> {
+        let (mut store, bindings) = crate::component::load()?;
+        bindings
+            .aethel_core_identity()
+            .issuer_public_parameters()
+            .call_deserialize(&mut store, bytes)??;
+        Ok(Self {
+            bytes: bytes.to_vec(),
+        })
+    }
+
+    /// The published form. Safe to publish: that is the point of them.
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+}
+
+impl core::fmt::Debug for IssuerPublicParameters {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("IssuerPublicParameters")
+            .field("bytes", &self.bytes.len())
+            .finish()
+    }
+}
+
+/// Verify a presentation against an issuer's public parameters.
+///
 /// Returns `Ok(false)` for a well-formed presentation that does not verify.
+///
+/// This takes [`IssuerPublicParameters`], not the issuer seed. A verifier needs
+/// no secret, so a public verifying endpoint is possible: it was not before,
+/// because verification used to require the seed that issues.
 pub fn verify_presentation(
-    issuer_seed: &[u8],
+    issuer: &IssuerPublicParameters,
     presentation: &Presentation,
     expected_context: &[u8],
 ) -> Result<bool, Error> {
     let (mut store, bindings) = crate::component::load()?;
+    let resource = bindings
+        .aethel_core_identity()
+        .issuer_public_parameters()
+        .call_deserialize(&mut store, &issuer.bytes)??;
     let verified = bindings
         .aethel_core_identity()
         .call_saap_verify_presentation(
             &mut store,
-            issuer_seed,
+            resource,
             &presentation.inner,
             presentation.projection.as_component(),
             expected_context,
