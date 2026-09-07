@@ -7,6 +7,88 @@ adheres to the breaking-change and deprecation rules in
 [`STABILITY.md`](./STABILITY.md) rather than strict SemVer prior to `1.0.0` — see that
 document for what counts as breaking inside `0.x`.
 
+## [0.4.0] - 2026-09-06
+
+Everything here came out of blind-testing the quickstart: three readers were given only the
+published crates.io page, no repository access, and told to build something and report every
+point where they had to guess. All three succeeded, in about six minutes each. The list below
+is what they hit on the way, and two of them independently found the same three API defects.
+
+### Breaking
+
+- **`Presentation::projection()` returns [`Projection`] instead of the raw component type.**
+  It previously returned `&EphemeralProjection`, which comes from `aethel-core` and is a
+  dev-dependency here, so no consuming crate could name the type: the accessor was unusable
+  from outside this crate, and a reader who tried got a type error naming something they could
+  not import. It now returns the same `Projection` that `Identity::project_at` produces, so
+  `tau()`, `salt()`, `public_b()` and `to_bytes()` are available.
+
+  *Migration:* field access becomes a method call. `presentation.projection().public_b` becomes
+  `presentation.projection().public_b()`, and likewise for `tau` and `salt`.
+
+- **`Credential::attribute_names()` returns only the attributes you issued over.** A credential
+  occupies eight slots internally and the unused ones carry placeholder names; those
+  placeholders were being returned to callers, so issuing over three attributes gave back
+  `["tier", "age", "region", "__unused_3", ...]`. One reader noted they would have rendered the
+  placeholders in a UI. `Debug` for `Credential` no longer shows them either.
+
+  *Migration:* if you were filtering out `__unused_` prefixes yourself, stop.
+
+- **A placeholder slot name is no longer disclosable.** `present()` searched all eight slot
+  names, so `__unused_1` resolved to a slot and produced a valid disclosure of an attribute
+  that was never issued. Name lookup is now restricted to the issued prefix, and an unissued
+  name returns `UnknownAttribute` as it always should have.
+
+### Fixed
+
+- Recovery against a wrong `expected_root` reported "shares belong to different recovery sets"
+  when the shares were all from one set and the root was the wrong input. It now names both
+  possibilities instead of asserting the one that was false.
+
+### Added
+
+- **A runnable example on the crate's front page, and one on `verify`.** Both are doctests, so
+  CI runs them. The published API previously had no code example anywhere: readers assembled
+  their programs from type signatures alone, and the one worked example the docs pointed at
+  (`examples/quickstart.rs`) was not reachable from the rendered documentation.
+- `verify`'s documentation now names the `is_ok()` trap directly. `verify(..).is_ok()` is true
+  for a signature that did not verify, and one reader identified this as the one place a
+  newcomer could ship a program that accepts every signature.
+- The crate documentation and README now state the build cost before you pay it: this crate
+  embeds a WebAssembly runtime, so it pulls wasmtime and Cranelift, and a cold build takes
+  minutes and a gigabyte. All three readers sat through it not knowing whether the build had
+  hung. Both also now say the crate is host-only and will not build for `wasm32-unknown-unknown`.
+- `MIN_ENTROPY_BYTES`, `MIN_SEAL_KEY_BYTES` and `MIN_PROJECTION_RANDOMNESS_BYTES` state their
+  value in prose rather than only in the constant, and `MIN_SEAL_KEY_BYTES` now says that the
+  length is enforced while the quality of the bytes is not and cannot be.
+- `MIN_SEAL_KEY_BYTES` also says where to get a key. The docs told readers not to use a
+  password without naming a way to produce a real key, and one reader had to guess a crate and
+  version to make one.
+- `recover_from_shares` documents that it takes three shares of the five, where `expected_root`
+  comes from, and that a wrong sealing key surfaces as the sealed-blob error rather than a
+  distinct variant.
+- `README.md` gains the `[dependencies]` line it never had, and the crate documentation links
+  `SECURITY-MODEL.md`, which was cited as required reading while being unreachable from any
+  published page.
+- `documentation` and `homepage` are set in the manifest. Neither was, so nothing pointed a
+  reader from crates.io to docs.rs.
+
+### Documentation
+
+- **Verifying a presentation currently requires the issuer's secret seed**, which means any
+  party that can verify can also issue. This is now stated in "What is not built anywhere"
+  alongside the other gaps. Two readers found it independently and both re-read the pages twice
+  assuming they had misunderstood the parameter; neither could tell whether it was intended.
+  It is a limitation of the current `aethel-core` world rather than of the construction, and
+  fixing it properly means issuer public parameters upstream.
+- **`Presentation` has no serialised form**, though it is described as what the holder sends.
+  Stated on the type. Together with the issuer-seed limitation, cross-party disclosure is not
+  yet deployable, and saying so is better than letting a reader discover it while building.
+- The README no longer opens by saying the crate "is planned as" and "is meant to give" before
+  listing what runs today. It has run for several releases.
+- "Runs today" no longer opens with `LICENSE`, `CI` and the other scaffolding. A reader
+  scanning that list wants to know what they can call.
+
 ## [0.3.3] - 2026-09-06
 
 The first release whose version does not match the `aethel-core` it embeds. That is deliberate

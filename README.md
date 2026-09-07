@@ -6,12 +6,12 @@
 > expected between minor versions until `1.0`. See [`STABILITY.md`](./STABILITY.md) for
 > exactly what that means.
 
-`aethel-sdk` is planned as an ergonomic Rust surface over
+`aethel-sdk` is an ergonomic Rust surface over
 [`aethel-core`](https://github.com/0x307/aethel-core)'s post-quantum identity primitives.
 Where `aethel-core` exposes the cryptographic building blocks (Polymorphic Lattice
 Projection, Selective Attribute Attestation, 5D Hypercube Threshold Secret Sharing) as a
-`no_std`/WASM component, this crate is meant to give an application developer the everyday
-verbs on top of it:
+`no_std`/WASM component, this crate gives an application developer the everyday verbs on top
+of it:
 
 - **Generate** an identity and persist it
 - **Sign** a message and **verify** a signature
@@ -20,12 +20,21 @@ verbs on top of it:
 - **Disclose** selected attributes without revealing the rest (SAAP)
 - **Recover** an identity from threshold shares (HTSS)
 
+```toml
+[dependencies]
+aethel-sdk = "0.3"
+```
+
+**Before you add it:** this crate embeds a WebAssembly runtime, so `cargo add aethel-sdk` pulls
+wasmtime and Cranelift, roughly 120 crates. A cold debug build takes several minutes and leaves
+a target directory over a gigabyte. That is a one-time cost, and a build that looks stuck at
+four minutes is not stuck. Host platforms only: wasmtime needs mmap and cannot compile to
+`wasm32-unknown-unknown`, so this crate will not build for a browser.
+
 ## What runs today vs. what is designed
 
 **Runs today:**
 
-- Repo scaffolding and program artifacts: `LICENSE`, `NOTICE`, `SECURITY.md`,
-  `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `STABILITY.md`, CI.
 - **The `aethel:core` component is embedded in the crate**, built from a pinned
   `aethel-core` revision, with its SHA-256 declared in the package and checked by tests and
   by CI. See [The embedded component](#the-embedded-component) below, including how to
@@ -56,6 +65,11 @@ verbs on top of it:
 - Nothing cryptographic is implemented in this crate, and nothing ever will be. Every
   cryptographic operation lives inside the component. That is the charter's L1 boundary: one
   artifact, embedded by every language, and adding a language never adds crypto.
+
+- Repo scaffolding and program artifacts: `LICENSE`, `NOTICE`, `SECURITY.md`,
+  `SECURITY-MODEL.md`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `STABILITY.md`, CI. Last in
+  this list on purpose: shipping a LICENSE is not a capability, and a reader scanning for what
+  they can call should not have to step over it.
 
 **Designed, not yet implemented:**
 
