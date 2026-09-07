@@ -7,6 +7,44 @@ adheres to the breaking-change and deprecation rules in
 [`STABILITY.md`](./STABILITY.md) rather than strict SemVer prior to `1.0.0` — see that
 document for what counts as breaking inside `0.x`.
 
+## [0.5.1] - 2026-09-07
+
+Documentation, from a second blind test against the published 0.5.0. One reader built against
+it cold and reached a working program in 3m46s; a second was asked only what the documentation
+led them to *believe*, which found more than the build did.
+
+### Fixed
+
+- **`Presentation`'s docs named `Projection` as having `from_bytes`. It does not.** A reader
+  wrote `Projection::from_bytes` on the strength of that sentence, got `E0599`, and could not
+  tell from the docs whether they had hit a bug, an unreleased feature, or a doc error. That
+  was the one moment in the run they wanted to open the source. Introduced in 0.4.0.
+- **`verify_presentation` claimed a public verifying endpoint was possible** while
+  `Presentation` said it has no serialised form. Both are true separately and they contradict
+  each other: a presentation can only be verified in the process that made it, so the endpoint
+  cannot be built yet. The claim now says what the split does buy and what it does not.
+
+### Added
+
+- **A "What `Ok(true)` does and does not mean" section on `verify_presentation` itself.** The
+  self-assertion caveat was on the module page and the `IssuerPublicParameters` page, and a
+  reader arriving from an IDE lands on the function, where none of it was.
+- **The crate root now leads with the two limits** that decide whether this is usable for a
+  given purpose, before the feature list. A reader who only skimmed the root came away
+  believing this was a working credentials system with one known gap, and revised only on
+  reaching a type page. The honesty was there; the ordering buried it.
+- **A "what you are responsible for" summary in the crate docs**, and the out-of-scope list,
+  rather than only a link to `SECURITY-MODEL.md`. That file is cited as the authority on what
+  is claimed and is the one document a docs.rs reader cannot open.
+- `MIN_ISSUER_SEED_BYTES`. The issuer seed was the only secret input without a stated length:
+  entropy, seal keys and projection randomness all had one. Both blind rounds flagged it, and
+  the second said its 32-byte guess came from prior knowledge rather than from us.
+- `MAX_ATTRIBUTES` states its value where it is read, and `issue_credential` says attribute
+  values are `u64` with no encoding for strings, so caller and verifier must agree a mapping
+  out of band.
+- A runnable `Verifier` example. The docs recommend `Verifier` for anything on a request path
+  while every worked example used the free function they tell you not to use there.
+
 ## [0.5.0] - 2026-09-07
 
 Embeds `aethel-core` 0.4.0 (`d01258563c7aaf99226b428793873d968180e99f`), which adds issuer

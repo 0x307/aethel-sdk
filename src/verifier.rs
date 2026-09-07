@@ -44,6 +44,24 @@ pub struct Verifier {
 impl Verifier {
     /// Compile the embedded component and hold it.
     ///
+    /// ```
+    /// use aethel_sdk::{Identity, Verifier};
+    ///
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// // Once, at startup: this is where the ~230 ms compile is paid.
+    /// let verifier = Verifier::new()?;
+    ///
+    /// let mut identity = Identity::generate()?;
+    /// let signature = identity.sign(b"a message")?;
+    ///
+    /// // Per request, as often as you like. Same contract as the free
+    /// // function: Ok(false) is "did not verify", Err is "could not check".
+    /// assert!(verifier.verify(identity.public_key(), b"a message", &signature)?);
+    /// assert!(!verifier.verify(identity.public_key(), b"other", &signature)?);
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
     /// This is where the 230 ms first-use compile happens for this verifier.
     /// Call it once, at startup, rather than lazily on the first request.
     pub fn new() -> Result<Self, Error> {
