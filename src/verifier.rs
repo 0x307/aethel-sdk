@@ -89,7 +89,7 @@ impl Verifier {
                 &mut store,
                 issuer_seed,
                 &presentation.inner,
-                &presentation.projection,
+                presentation.projection.as_component(),
                 expected_context,
             )??;
         Ok(verified)

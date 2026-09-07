@@ -36,9 +36,11 @@ use crate::component::{
 use wasmtime::component::ResourceAny;
 use wasmtime::Store;
 
-/// Minimum entropy accepted by the component's key derivation.
+/// Minimum entropy accepted by the component's key derivation: 32 bytes.
+///
+/// Anything shorter is refused with `IdentityError::InvalidInputLength`.
 pub const MIN_ENTROPY_BYTES: usize = 32;
-/// Minimum bytes of secret randomness required for one PLP projection.
+/// Minimum bytes of secret randomness required for one PLP projection: 32.
 pub const MIN_PROJECTION_RANDOMNESS_BYTES: usize = 32;
 
 /// The multicodec code for an ML-DSA-65 public key, registered upstream.
@@ -86,8 +88,14 @@ pub struct Projection {
 }
 
 impl Projection {
-    fn from_component(inner: EphemeralProjection) -> Self {
+    pub(crate) fn from_component(inner: EphemeralProjection) -> Self {
         Self { inner }
+    }
+
+    /// The component's own representation, for passing back across the
+    /// boundary. Crate-internal: this type is not nameable by a consumer.
+    pub(crate) fn as_component(&self) -> &EphemeralProjection {
+        &self.inner
     }
 
     /// The core's padded 32-byte context tag (τ).
@@ -546,6 +554,19 @@ impl Identity {
 
     /// Recover an identity from any three valid shares of one recovery set.
     ///
+    /// Pass **three** shares, any three of the five, in any order. Passing more
+    /// than the scheme issues is refused; passing fewer than the threshold is
+    /// refused by the component as `ThresholdNotMet`.
+    ///
+    /// `expected_root` comes from [`RecoveryShareSet::merkle_root`] at split
+    /// time, and has to be kept somewhere the holder of the shares does not
+    /// control. That is the whole point of it: see the type's documentation.
+    ///
+    /// A wrong `sealing_key` surfaces as the component's sealed-blob error
+    /// rather than a distinct "wrong key" variant, because [`Identity::open_sealed`]
+    /// makes its failure modes deliberately indistinguishable. That error does
+    /// not mean the shares were bad.
+    ///
     /// `expected_root` is trusted authentication metadata retained separately
     /// from the untrusted shares, such as in a keychain or an authenticated
     /// recovery record. It must not be sourced from the share bundle supplied
@@ -568,7 +589,7 @@ impl Identity {
             .any(|share| !bool::from(share.merkle_root.ct_eq(expected_root)))
         {
             return Err(Error::InvalidRecoveryMaterial(
-                "shares belong to different recovery sets",
+                "a share does not authenticate against the supplied root: either the root is                  not the one for this share set, or the shares are from more than one set",
             ));
         }
         let component_shares: Vec<HtssShare> = shares
@@ -635,7 +656,19 @@ impl Identity {
     }
 }
 
-/// Minimum sealing key length. See [`Identity::export_sealed`].
+/// Minimum sealing key length: 32 bytes. See [`Identity::export_sealed`].
+///
+/// This crate deliberately offers no helper to generate one. A sealing key
+/// usually needs to outlive the process and be retrievable later, so where it
+/// comes from and where it is stored is an application decision, not something
+/// a library should quietly make. To generate one directly, use the `getrandom`
+/// crate (already in this crate's dependency tree) or `rand`; to derive one from
+/// a password, run Argon2id or scrypt first and pass the output here.
+///
+/// This length is enforced; the *quality* of the bytes is not, and cannot be.
+/// A 32-byte password-derived string satisfies this constant and still produces
+/// a blob that falls to a wordlist. See [`Identity::export_sealed`] for how to
+/// obtain a key that does not.
 pub const MIN_SEAL_KEY_BYTES: usize = 32;
 
 impl Identity {
@@ -703,6 +736,27 @@ impl Identity {
 /// only when the input could not be processed at all. Those are different
 /// answers and collapsing them is how "invalid signature" and "malformed input"
 /// become indistinguishable.
+///
+/// This is the one place in this crate where the wrong idiom silently accepts
+/// everything. `verify(..).is_ok()` is true for a signature that did not
+/// verify: the `Ok` says the check ran, and the `bool` inside says what it
+/// concluded. Use the `bool`.
+///
+/// ```
+/// use aethel_sdk::{verify, Identity};
+///
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// let mut identity = Identity::generate()?;
+/// let signature = identity.sign(b"a message")?;
+///
+/// assert!(verify(identity.public_key(), b"a message", &signature)?);
+///
+/// // A signature that does not verify is Ok(false), not Err.
+/// let wrong = verify(identity.public_key(), b"another message", &signature)?;
+/// assert!(!wrong);
+/// # Ok(())
+/// # }
+/// ```
 pub fn verify(public_key: &[u8], message: &[u8], signature: &[u8]) -> Result<bool, Error> {
     let (mut store, bindings) = component::load()?;
     let verified = bindings

@@ -35,7 +35,7 @@
 use alloc_shim::BTreeMap;
 
 use crate::component::exports::aethel::core::identity::{
-    DisclosureAttributes, EphemeralProjection, SaapPresentation as WitPresentation,
+    DisclosureAttributes, SaapPresentation as WitPresentation,
 };
 use crate::identity::{Error, Identity};
 use wasmtime::component::ResourceAny;
@@ -63,13 +63,18 @@ fn fresh_randomness() -> Result<[u8; RANDOMNESS_BYTES], Error> {
 /// component. Issue once, present many times.
 pub struct Credential {
     pub(crate) handle: ResourceAny,
+    /// All `MAX_ATTRIBUTES` slot names, padded. Internal: the padding exists so
+    /// a disclose-by-name lookup cannot match an unused slot by accident, and
+    /// it is not something a caller should ever see.
     pub(crate) schema: Vec<String>,
+    /// How many of `schema` the caller actually issued over.
+    pub(crate) issued: usize,
 }
 
 impl core::fmt::Debug for Credential {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("Credential")
-            .field("attributes", &self.schema)
+            .field("attributes", &self.attribute_names())
             .field(
                 "values",
                 &format_args!("<held in the component, never here>"),
@@ -80,15 +85,25 @@ impl core::fmt::Debug for Credential {
 
 impl Credential {
     /// The attribute names this credential was issued over, in slot order.
+    /// Exactly the names that were issued over, in slot order.
+    ///
+    /// A credential always occupies `MAX_ATTRIBUTES` slots internally, and the
+    /// unused ones carry placeholder names so that disclosing by name cannot
+    /// match one by accident. Those placeholders are an implementation detail
+    /// and are not returned here: issuing over three attributes gives three
+    /// names back.
     pub fn attribute_names(&self) -> &[String] {
-        &self.schema
+        &self.schema[..self.issued]
     }
 
     fn mask_for(&self, disclose: &[&str]) -> Result<DisclosureAttributes, Error> {
         let mut mask = DisclosureAttributes::empty();
         for name in disclose {
-            let slot = self
-                .schema
+            // Only the issued prefix is searchable. The padding names exist so
+            // that an unissued slot has *a* name and cannot be matched
+            // positionally by accident; they were never meant to be a disclosable
+            // surface of their own, and searching the full schema made them one.
+            let slot = self.schema[..self.issued]
                 .iter()
                 .position(|n| n == name)
                 .ok_or_else(|| Error::UnknownAttribute((*name).to_string()))?;
@@ -121,9 +136,19 @@ fn slot_flag(slot: usize) -> DisclosureAttributes {
 /// Carries the disclosed values, the blinded commitment and the responses.
 /// Nothing in it is key material, and nothing in it identifies the credential
 /// across presentations.
+/// What the holder produces and the verifier checks.
+///
+/// **This type has no serialised form yet.** It is described as what the holder
+/// sends, and in a deployment it would have to travel between processes, but
+/// there is no `to_bytes`/`from_bytes` on it the way there is on
+/// [`crate::Projection`], [`crate::RecoveryShare`] and
+/// [`crate::RecoveryShareSet`]. Today a presentation can only be verified in the
+/// process that produced it. Combined with the issuer-seed limitation in the
+/// crate documentation, cross-party disclosure is not yet deployable; both are
+/// tracked, and neither is a limitation of the underlying construction.
 pub struct Presentation {
     pub(crate) inner: WitPresentation,
-    pub(crate) projection: EphemeralProjection,
+    pub(crate) projection: crate::identity::Projection,
     pub(crate) schema: Vec<String>,
 }
 
@@ -153,7 +178,12 @@ impl Presentation {
 
     /// The holder's projection at this context. Public, and what verification
     /// anchors on.
-    pub fn projection(&self) -> &EphemeralProjection {
+    /// Returns [`crate::Projection`], the same type [`crate::Identity::project_at`]
+    /// produces, so its `tau()`, `salt()`, `public_b()` and `to_bytes()` are
+    /// available here too. It used to return the raw component type, which no
+    /// consuming crate could name: that type comes from `aethel-core`, which is
+    /// a dev-dependency here, so the accessor was unusable from outside.
+    pub fn projection(&self) -> &crate::identity::Projection {
         &self.projection
     }
 }
@@ -175,6 +205,7 @@ impl Identity {
             return Err(Error::TooManyAttributes(attributes.len()));
         }
 
+        let issued = attributes.len();
         let mut names: Vec<String> = attributes.iter().map(|(n, _)| (*n).to_string()).collect();
         let mut values = [0u64; MAX_ATTRIBUTES];
         for (i, (_, v)) in attributes.iter().enumerate() {
@@ -202,6 +233,7 @@ impl Identity {
         Ok(Credential {
             handle,
             schema: names,
+            issued,
         })
     }
 
@@ -252,7 +284,7 @@ impl Identity {
 
         Ok(Presentation {
             inner,
-            projection,
+            projection: crate::identity::Projection::from_component(projection),
             schema: credential.schema.clone(),
         })
     }
@@ -278,7 +310,7 @@ pub fn verify_presentation(
             &mut store,
             issuer_seed,
             &presentation.inner,
-            &presentation.projection,
+            presentation.projection.as_component(),
             expected_context,
         )??;
     Ok(verified)

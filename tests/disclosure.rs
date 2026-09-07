@@ -8,8 +8,9 @@
 
 #![cfg(not(target_arch = "wasm32"))]
 
-use aethel_sdk::{verify_presentation, Identity};
+use aethel_sdk::{identity::Error, verify_presentation, Identity};
 
+const ENTROPY: &[u8; 32] = b"deterministic entropy for tests!";
 const ISSUER_SEED: &[u8] = b"issuer seed for the sdk tests!!!";
 
 fn attributes() -> Vec<(&'static str, u64)> {
@@ -166,7 +167,7 @@ fn an_undisclosed_attribute_is_not_in_the_presentation() {
 
     // And it is not sitting in the raw response coefficients either.
     let mut raw = Vec::new();
-    for c in presentation.projection().public_b.iter() {
+    for c in presentation.projection().public_b().iter() {
         raw.extend_from_slice(&c.to_le_bytes());
     }
     assert!(
@@ -205,8 +206,8 @@ fn two_presentations_are_unlinkable_and_both_verify() {
 
     assert_eq!(first.disclosed(), second.disclosed(), "test setup");
     assert_ne!(
-        format!("{:?}", first.projection().public_b),
-        format!("{:?}", second.projection().public_b),
+        format!("{:?}", first.projection().public_b()),
+        format!("{:?}", second.projection().public_b()),
         "two presentations shared a projection, so they are linkable"
     );
 }
@@ -246,4 +247,46 @@ fn credential_debug_does_not_print_values() {
         rendered.contains("held in the component"),
         "Debug does not say where the values live: {rendered}"
     );
+}
+
+/// Slot padding is an implementation detail and must not reach the caller.
+///
+/// A credential always occupies MAX_ATTRIBUTES slots, and unused ones carry
+/// placeholder names so a disclose-by-name lookup cannot match one by accident.
+/// Blind testing caught those placeholders coming back out of
+/// `attribute_names()`: two readers issued over a few attributes and got eight
+/// names, and one noted they would have rendered the placeholders in a UI.
+#[test]
+fn attribute_names_returns_only_what_was_issued() {
+    let mut identity = Identity::from_entropy(ENTROPY).expect("identity");
+    let credential = identity
+        .issue_credential(ISSUER_SEED, &[("tier", 3), ("region", 7)])
+        .expect("issue");
+
+    assert_eq!(
+        credential.attribute_names(),
+        &["tier".to_string(), "region".to_string()],
+        "attribute_names leaked padding slots"
+    );
+
+    let rendered = format!("{credential:?}");
+    assert!(
+        !rendered.contains("__unused"),
+        "Debug output leaked padding slots: {rendered}"
+    );
+}
+
+/// The padding still has to do its job: a name that was never issued must not
+/// resolve to an unused slot.
+#[test]
+fn an_unused_slot_name_is_not_disclosable() {
+    let mut identity = Identity::from_entropy(ENTROPY).expect("identity");
+    let credential = identity
+        .issue_credential(ISSUER_SEED, &[("tier", 3)])
+        .expect("issue");
+
+    assert!(matches!(
+        identity.present(&credential, b"ctx", &["__unused_1"]),
+        Err(Error::UnknownAttribute(_))
+    ));
 }

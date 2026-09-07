@@ -1,5 +1,52 @@
 //! `aethel-sdk`: a Rust surface over aethel-core's post-quantum identity primitives.
 //!
+//! ```
+//! use aethel_sdk::{verify, Identity};
+//!
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! // The signing key is derived inside the embedded component from OS entropy
+//! // and never enters this process.
+//! let mut identity = Identity::generate()?;
+//!
+//! let message = b"the message that was actually signed";
+//! let signature = identity.sign(message)?;
+//!
+//! // Ok(false) is "this signature does not verify". An Err means the input
+//! // could not be processed at all. They are different answers: treating an
+//! // error as "invalid" is what makes malformed input look like a failed check.
+//! assert!(verify(identity.public_key(), message, &signature)?);
+//! assert!(!verify(identity.public_key(), b"something else", &signature)?);
+//!
+//! // The interoperable form of the public key, for a DID document.
+//! println!("{}", identity.public_key_multibase());
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! Fuller worked examples are in `examples/` in the published package:
+//! `quickstart.rs` (generate, sign, verify, persist, disclose), `projection.rs`,
+//! and `bench_verify.rs`. Run them with `cargo run --example quickstart` from a
+//! checkout of the repository.
+//!
+//! # Before you add this crate
+//!
+//! This crate embeds a WebAssembly runtime. `cargo add aethel-sdk` pulls
+//! wasmtime and Cranelift, roughly 120 crates, and a cold debug build takes
+//! **several minutes** and produces a target directory over a gigabyte. That is
+//! a one-time cost and it is not a hung build. Separately, the first
+//! verification in a process pays a ~230 ms component compile; [`Verifier`]
+//! exists so you can pay that at startup rather than on a caller's request.
+//!
+//! Host platforms only. wasmtime needs mmap and cannot itself be compiled to
+//! `wasm32-unknown-unknown`, so this crate is scoped away from that target: it
+//! will not build for a browser. The identity operations still all happen inside
+//! WebAssembly; it is the runtime executing them that has to be native.
+//!
+//! [`SECURITY-MODEL.md`](https://github.com/0x307/aethel-sdk/blob/main/SECURITY-MODEL.md)
+//! states what this crate claims, how each claim is checked, what you are
+//! responsible for, and what is out of scope. It ships in this package. Read it
+//! before depending on this for anything that matters.
+//!
 //! # What runs today
 //!
 //! The compiled `aethel:core` component is embedded in this crate, its integrity
@@ -10,12 +57,14 @@
 //! embedded by every language, carrying every cryptographic operation. Nothing
 //! in this crate implements crypto, and nothing in this crate is allowed to.
 //!
-//! On top of that, the following work end to end and are exercised by
-//! `examples/quickstart.rs`, which runs in CI:
+//! On top of that, the following work end to end, and every one of them is
+//! exercised by the test suite and by `examples/quickstart.rs`, which runs in
+//! CI:
 //!
 //! - [`Identity::generate`] and [`Identity::from_entropy`], keys derived inside
 //!   the component and never present in this process
-//! - [`Identity::sign`] and [`verify`], ML-DSA-65
+//! - [`Identity::sign`], and the free function [`identity::verify`] (there is
+//!   no `Identity::verify`: verification needs only public material). ML-DSA-65
 //! - [`Identity::export_sealed`] and [`Identity::open_sealed`], so an identity
 //!   survives the process
 //! - [`Identity::split_for_recovery`] and [`Identity::recover_from_shares`],
@@ -35,6 +84,14 @@
 //!
 //! # What is not built anywhere
 //!
+//! - **Issuer key management. Verifying a presentation currently requires the
+//!   issuer's secret seed.** [`verify_presentation`] takes the same
+//!   `issuer_seed` that [`Identity::issue_credential`] takes, so any party that
+//!   can verify can also issue. There are no public issuer parameters to verify
+//!   against yet: `aethel-core` does not expose them. Until it does, an issuer
+//!   and a verifier cannot be separate parties, and a verifier cannot be a
+//!   public endpoint. This is a limitation of the current world, not of the
+//!   underlying construction.
 //! - **Predicate proofs over hidden values.** "Age over 21 without revealing
 //!   age" does not work. Selective disclosure reveals the exact value of a
 //!   disclosed attribute; it cannot prove a bound on an undisclosed one. This is
