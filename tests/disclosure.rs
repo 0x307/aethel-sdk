@@ -8,10 +8,15 @@
 
 #![cfg(not(target_arch = "wasm32"))]
 
-use aethel_sdk::{identity::Error, verify_presentation, Identity};
+use aethel_sdk::{identity::Error, verify_presentation, Identity, IssuerPublicParameters};
 
 const ENTROPY: &[u8; 32] = b"deterministic entropy for tests!";
 const ISSUER_SEED: &[u8] = b"issuer seed for the sdk tests!!!";
+
+/// The public half, which is what verification takes now.
+fn issuer() -> IssuerPublicParameters {
+    IssuerPublicParameters::derive(ISSUER_SEED).expect("derive issuer parameters")
+}
 
 fn attributes() -> Vec<(&'static str, u64)> {
     vec![
@@ -61,7 +66,7 @@ fn a_presentation_verifies() {
         .expect("present");
 
     assert!(
-        verify_presentation(ISSUER_SEED, &presentation, b"checkout-session").expect("verify"),
+        verify_presentation(&issuer(), &presentation, b"checkout-session").expect("verify"),
         "an honest presentation failed to verify through the SDK"
     );
 }
@@ -77,7 +82,8 @@ fn verification_fails_under_a_different_issuer() {
 
     assert!(
         !verify_presentation(
-            b"a completely different issuer!!!",
+            &IssuerPublicParameters::derive(b"a completely different issuer!!!")
+                .expect("derive other issuer"),
             &presentation,
             b"checkout-session"
         )
@@ -95,7 +101,7 @@ fn verification_fails_under_a_different_context() {
         .expect("present");
 
     assert!(
-        !verify_presentation(ISSUER_SEED, &presentation, b"some-other-session").expect("verify"),
+        !verify_presentation(&issuer(), &presentation, b"some-other-session").expect("verify"),
         "a presentation made for one context verified under another"
     );
 }
@@ -128,7 +134,7 @@ fn several_attributes_can_be_disclosed_together() {
     assert_eq!(disclosed.get("tier"), Some(&3));
     assert_eq!(disclosed.get("region_code"), Some(&44));
     assert_eq!(disclosed.len(), 2);
-    assert!(verify_presentation(ISSUER_SEED, &presentation, b"kyc-session").expect("verify"));
+    assert!(verify_presentation(&issuer(), &presentation, b"kyc-session").expect("verify"));
 }
 
 /// Disclosing nothing at all still proves credential possession and identity
@@ -142,7 +148,7 @@ fn disclosing_nothing_still_verifies() {
 
     assert!(presentation.disclosed().is_empty());
     assert!(
-        verify_presentation(ISSUER_SEED, &presentation, b"anonymous-session").expect("verify"),
+        verify_presentation(&issuer(), &presentation, b"anonymous-session").expect("verify"),
         "a presentation disclosing nothing failed to verify"
     );
 }
@@ -201,8 +207,8 @@ fn two_presentations_are_unlinkable_and_both_verify() {
         .present(&credential, b"session-two", &["tier"])
         .expect("present");
 
-    assert!(verify_presentation(ISSUER_SEED, &first, b"session-one").expect("verify"));
-    assert!(verify_presentation(ISSUER_SEED, &second, b"session-two").expect("verify"));
+    assert!(verify_presentation(&issuer(), &first, b"session-one").expect("verify"));
+    assert!(verify_presentation(&issuer(), &second, b"session-two").expect("verify"));
 
     assert_eq!(first.disclosed(), second.disclosed(), "test setup");
     assert_ne!(
@@ -289,4 +295,54 @@ fn an_unused_slot_name_is_not_disclosable() {
         identity.present(&credential, b"ctx", &["__unused_1"]),
         Err(Error::UnknownAttribute(_))
     ));
+}
+
+/// Verification takes the public half, and the public half is genuinely public.
+///
+/// The point of the split is that a verifier holds no secret. Pinning the
+/// round-trip matters because the parameters have to travel to every verifier,
+/// and pinning that a different issuer's parameters reject the presentation
+/// matters because otherwise this test would pass for a verifier that ignored
+/// them entirely.
+#[test]
+fn issuer_parameters_round_trip_and_are_issuer_specific() {
+    let (mut identity, credential) = issued();
+    let presentation = identity
+        .present(&credential, b"checkout-session", &["tier"])
+        .expect("present");
+
+    let published = issuer().as_bytes().to_vec();
+    let reconstructed =
+        IssuerPublicParameters::from_bytes(&published).expect("reconstruct from published bytes");
+
+    assert!(
+        verify_presentation(&reconstructed, &presentation, b"checkout-session").expect("verify"),
+        "parameters did not survive the round trip a verifier depends on"
+    );
+
+    let other = IssuerPublicParameters::derive(b"a completely different issuer!!!")
+        .expect("derive other issuer");
+    assert!(
+        !verify_presentation(&other, &presentation, b"checkout-session").expect("verify"),
+        "a presentation verified under an unrelated issuer's parameters"
+    );
+}
+
+/// The published parameters must not be the seed, or the split buys nothing.
+#[test]
+fn published_parameters_do_not_contain_the_issuer_seed() {
+    let published = issuer().as_bytes().to_vec();
+
+    assert!(
+        !published
+            .windows(ISSUER_SEED.len())
+            .any(|w| w == ISSUER_SEED),
+        "the issuer seed appears verbatim in the parameters a verifier is given"
+    );
+
+    let rendered = format!("{:?}", issuer());
+    assert!(
+        !rendered.contains("issuer seed"),
+        "Debug output leaked the seed: {rendered}"
+    );
 }

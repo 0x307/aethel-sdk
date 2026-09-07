@@ -84,14 +84,17 @@
 //!
 //! # What is not built anywhere
 //!
-//! - **Issuer key management. Verifying a presentation currently requires the
-//!   issuer's secret seed.** [`verify_presentation`] takes the same
-//!   `issuer_seed` that [`Identity::issue_credential`] takes, so any party that
-//!   can verify can also issue. There are no public issuer parameters to verify
-//!   against yet: `aethel-core` does not expose them. Until it does, an issuer
-//!   and a verifier cannot be separate parties, and a verifier cannot be a
-//!   public endpoint. This is a limitation of the current world, not of the
-//!   underlying construction.
+//! - **Issuer-authenticated issuance.** Verification no longer needs the issuer
+//!   seed: [`verify_presentation`] takes [`IssuerPublicParameters`], so a
+//!   verifier holds no secret and a compromised verifier cannot issue against
+//!   anyone else's identity. What that does *not* buy is unforgeable attributes.
+//!   The relation checks that a presentation opens under the issuer's
+//!   parameters, not that an issuer authorised the values, and a holder must
+//!   hold those parameters to present at all. So a holder can self-assert:
+//!   construct a credential over their own identity with attributes of their
+//!   choosing, and it verifies. Deployments where holders are not trusted to
+//!   state their own attributes need the issuer's signature over the credential,
+//!   which is not shipped. See `docs/ISSUER-AUTHENTICATION.md` in `aethel-core`.
 //! - **Predicate proofs over hidden values.** "Age over 21 without revealing
 //!   age" does not work. Selective disclosure reveals the exact value of a
 //!   disclosed attribute; it cannot prove a bound on an undisclosed one. This is
@@ -127,7 +130,7 @@ pub mod disclosure;
 pub mod verifier;
 
 #[cfg(not(target_arch = "wasm32"))]
-pub use disclosure::{verify_presentation, Credential, Presentation};
+pub use disclosure::{verify_presentation, Credential, IssuerPublicParameters, Presentation};
 
 #[cfg(not(target_arch = "wasm32"))]
 pub use identity::{verify, Identity, Projection, RecoveryShare, RecoveryShareSet};

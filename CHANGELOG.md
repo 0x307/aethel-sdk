@@ -7,6 +7,60 @@ adheres to the breaking-change and deprecation rules in
 [`STABILITY.md`](./STABILITY.md) rather than strict SemVer prior to `1.0.0` — see that
 document for what counts as breaking inside `0.x`.
 
+## [0.5.0] - 2026-09-07
+
+Embeds `aethel-core` 0.4.0 (`d01258563c7aaf99226b428793873d968180e99f`), which adds issuer
+public parameters. Rebuilt hash `5fee03ee725d32da4949d8d0769dc48fe2f68d5b664b33bdd928a889b7f50dd4`,
+matching the one `aethel-core` records for that revision.
+
+### Breaking
+
+- **Verification no longer takes the issuer seed.** `verify_presentation` and
+  `Verifier::verify_presentation` take [`IssuerPublicParameters`] instead. Previously every
+  party that could verify also held the full authority to issue, so an issuer and a verifier
+  could not be separate parties and a verifier could not be a public endpoint. Deriving the
+  parameters from a seed is one-way, so a compromised verifier can no longer issue against
+  anyone else's identity.
+
+  *Migration:* derive once and hold the result.
+
+  ```rust
+  let issuer = IssuerPublicParameters::derive(issuer_seed)?;
+  verify_presentation(&issuer, &presentation, context)?;
+  ```
+
+  `IssuerPublicParameters::as_bytes` / `from_bytes` round-trip the published form, which is
+  what you hand to a verifier. `issue_credential` still takes the seed, as it must.
+
+### Fixed
+
+- **`cargo build` silently kept stale bindings after re-vendoring the component.**
+  `src/component.rs` generates its bindings from `core/wit` through a proc macro, and cargo
+  does not see a file a macro reads. So after `scripts/sync-core.sh` pulled a reshaped world,
+  the build succeeded against the *old* bindings and the tests passed while exercising a world
+  the shipped component no longer had. It took `cargo clean -p aethel-sdk` to surface the two
+  call sites that no longer typechecked, and `sync-core.sh` ends by telling you to run
+  `cargo test`, which would have lied. A `build.rs` now declares `core/` as a build input.
+  Verified by editing the WIT and confirming a rebuild is triggered.
+
+### Documentation
+
+- **What a verified presentation actually proves, restated.** The docs said the verifier
+  "learns that the credential was issued by the issuer they named." It does not. The relation
+  checks that the presentation opens to a short preimage under the issuer's parameters, and it
+  does not check that an issuer authorised the attribute values. A holder must hold those
+  parameters to present at all, so a holder can construct a credential over their own identity
+  with attributes of their choosing and it will verify. Disclosed attributes are self-asserted.
+  This was wrong before this release in one way and would have been wrong after it in a subtler
+  way, which is the more dangerous kind.
+- `SECURITY-MODEL.md` gains "Disclosed attributes are self-asserted" and "Issuer public
+  parameters are publishable; the issuer seed is not" under what the caller is responsible for.
+  The first is the item most likely to be over-read, because selective disclosure sounds like
+  it carries an issuer's word.
+- Deployments needing "the issuer said this" rather than "the holder says this and the shape is
+  right" are pointed at `docs/ISSUER-AUTHENTICATION.md` in `aethel-core`, which states the gap
+  and the construction that closes it.
+
 ## [0.4.0] - 2026-09-06
 
 Everything here came out of blind-testing the quickstart: three readers were given only the

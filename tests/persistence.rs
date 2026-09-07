@@ -178,7 +178,8 @@ fn a_reopened_identity_can_issue_and_present() {
     assert_eq!(presentation.disclosed().get("tier"), Some(&3));
     assert!(
         aethel_sdk::verify_presentation(
-            b"issuer seed for the sdk tests!!!",
+            &aethel_sdk::IssuerPublicParameters::derive(b"issuer seed for the sdk tests!!!")
+                .expect("derive issuer parameters"),
             &presentation,
             b"after-reload"
         )

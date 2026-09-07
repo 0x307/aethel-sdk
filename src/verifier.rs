@@ -76,18 +76,25 @@ impl Verifier {
     /// `expected_context` must match the context the presentation was made
     /// for, and the result is `Ok(false)` for a well-formed presentation that
     /// does not verify.
+    /// Takes [`crate::IssuerPublicParameters`], not the issuer seed: a verifier
+    /// needs no secret. This is the shape a request-path verifier wants, since
+    /// the parameters are derived once and held.
     pub fn verify_presentation(
         &self,
-        issuer_seed: &[u8],
+        issuer: &crate::disclosure::IssuerPublicParameters,
         presentation: &Presentation,
         expected_context: &[u8],
     ) -> Result<bool, Error> {
         let (mut store, bindings) = self.runtime.instantiate()?;
+        let resource = bindings
+            .aethel_core_identity()
+            .issuer_public_parameters()
+            .call_deserialize(&mut store, issuer.as_bytes())??;
         let verified = bindings
             .aethel_core_identity()
             .call_saap_verify_presentation(
                 &mut store,
-                issuer_seed,
+                resource,
                 &presentation.inner,
                 presentation.projection.as_component(),
                 expected_context,

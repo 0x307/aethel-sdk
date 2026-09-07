@@ -34,6 +34,9 @@ fn a_held_verifier_agrees_with_the_free_function_for_signatures() {
 fn a_held_verifier_agrees_with_the_free_function_for_presentations() {
     let mut identity = Identity::generate().expect("generate");
     let issuer_seed = b"the issuer's secret seed, 32 byte";
+    // Verification takes the public half now. Derived once, then held.
+    let issuer_params =
+        aethel_sdk::IssuerPublicParameters::derive(issuer_seed).expect("derive issuer parameters");
     let context = b"checkout-session";
 
     let credential = identity
@@ -45,16 +48,16 @@ fn a_held_verifier_agrees_with_the_free_function_for_presentations() {
 
     let verifier = Verifier::new().expect("verifier");
     assert!(verifier
-        .verify_presentation(issuer_seed, &presentation, context)
+        .verify_presentation(&issuer_params, &presentation, context)
         .expect("verify"));
     assert_eq!(
         verifier
-            .verify_presentation(issuer_seed, &presentation, context)
+            .verify_presentation(&issuer_params, &presentation, context)
             .expect("verify"),
-        verify_presentation(issuer_seed, &presentation, context).expect("verify"),
+        verify_presentation(&issuer_params, &presentation, context).expect("verify"),
     );
     assert!(!verifier
-        .verify_presentation(issuer_seed, &presentation, b"a different context")
+        .verify_presentation(&issuer_params, &presentation, b"a different context")
         .expect("verify"));
 }
 

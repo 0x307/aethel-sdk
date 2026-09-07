@@ -50,7 +50,11 @@ four minutes is not stuck. Host platforms only: wasmtime needs mmap and cannot c
   `Identity::export_sealed()` and `Identity::open_sealed()`.
 - **Selective disclosure.** Issue a credential over named attributes, present it disclosing only
   the ones you choose, and verify the presentation. `issue_credential()`, `present()` and
-  `verify_presentation()`.
+  `verify_presentation()`. Verification takes the issuer's **public parameters**, never the
+  issuer seed, so a verifier holds no secret. Note that a presentation proves the credential
+  opens under those parameters, not that an issuer authorised the values: disclosed attributes
+  are self-asserted until issuer-authenticated issuance ships. See
+  [`SECURITY-MODEL.md`](./SECURITY-MODEL.md).
 - **Contextual projection.** `Identity::project_at(context)` obtains fresh OS randomness for
   each call and returns public context-bound material without exposing the identity's master
   secret.
@@ -88,7 +92,7 @@ aethel-sdk = "0.3"
 ```
 
 ```rust
-use aethel_sdk::{verify, verify_presentation, Identity};
+use aethel_sdk::{verify, verify_presentation, Identity, IssuerPublicParameters};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Entropy comes from the OS. The signing key is derived from it inside the
@@ -121,8 +125,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // The verifier learns the tier and nothing about the date of birth.
     assert_eq!(presentation.disclosed().get("tier"), Some(&3));
     assert!(presentation.disclosed().get("date_of_birth").is_none());
+    // Verification takes the issuer's public parameters, never the seed.
+    let issuer = IssuerPublicParameters::derive(b"the issuer's secret seed, 32 byte")?;
     assert!(verify_presentation(
-        b"the issuer's secret seed, 32 byte",
+        &issuer,
         &presentation,
         b"checkout-session",
     )?);
@@ -273,7 +279,7 @@ let verifier = Verifier::new()?;
 
 // Per request, as many times as you like:
 let ok = verifier.verify(public_key, message, &signature)?;
-let ok = verifier.verify_presentation(issuer_seed, &presentation, expected_context)?;
+let ok = verifier.verify_presentation(&issuer_params, &presentation, expected_context)?;
 ```
 
 Per-verification cost is identical to the free functions — both paths instantiate the same

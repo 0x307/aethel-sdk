@@ -1,6 +1,6 @@
 [package]
 name = "aethel-sdk"
-version = "0.4.0"
+version = "0.5.0"
 edition = "2021"
 description = "Ergonomic Rust SDK over aethel-core's post-quantum identity primitives: generate, sign, verify, project, disclose, recover"
 authors = ["Ed Johnson"]
@@ -22,6 +22,7 @@ rust-version = "1.95"
 # hash and the pin that say which aethel-core revision produced it.
 include = [
     "src/**/*",
+    "build.rs",
     "tests/**/*",
     # The README tells the reader to run these. Leaving them out of the package
     # meant a crates.io reader was pointed at a `cargo run --example` that could

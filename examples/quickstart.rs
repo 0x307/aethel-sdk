@@ -1,7 +1,7 @@
 //! The README quickstart, kept as an example so it is compiled and run rather
 //! than believed. If this stops working, CI notices before a reader does.
 
-use aethel_sdk::{verify, verify_presentation, Identity};
+use aethel_sdk::{verify, verify_presentation, Identity, IssuerPublicParameters};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Entropy comes from the OS. The signing key is derived from it inside the
@@ -38,8 +38,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // The verifier learns the tier and nothing about the date of birth.
     assert_eq!(presentation.disclosed().get("tier"), Some(&3));
     assert!(!presentation.disclosed().contains_key("date_of_birth"));
+    // Verification takes the issuer's public parameters, never the seed. Derive
+    // them once from the seed and publish them; a verifier needs nothing secret.
+    let issuer = IssuerPublicParameters::derive(b"the issuer's secret seed, 32 byte")?;
     assert!(verify_presentation(
-        b"the issuer's secret seed, 32 byte",
+        &issuer,
         &presentation,
         b"checkout-session",
     )?);
