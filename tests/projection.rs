@@ -116,3 +116,25 @@ fn projection_exposes_only_public_material() {
         "projection Debug output exposed identity generation material: {rendered}"
     );
 }
+
+/// The module rank is part of the artifact's identity, so pin it.
+///
+/// aethel-core 0.5.0 moved the identity path from rank 1 to rank 4. That
+/// quadrupled `public_b` from 256 coefficients to 1024 without changing the WIT
+/// record type: `public-b` was `list<u32>` before and after. A rank-1 component
+/// therefore still satisfies the world these bindings are generated from, and
+/// nothing in the type system would notice the substitution. This test, and the
+/// check inside `Projection::from_component` that it exercises, are what make a
+/// silent downgrade to the weaker parameter set fail loudly.
+#[test]
+fn a_projection_carries_the_rank_4_coefficient_count() {
+    let mut identity = Identity::from_entropy(ENTROPY).expect("identity");
+    let projection = identity.project_at(CONTEXT).expect("projection");
+
+    assert_eq!(
+        projection.public_b().len(),
+        aethel_sdk::identity::PROJECTION_COEFFICIENTS,
+        "projection coefficient count is not the vendored parameter set's"
+    );
+    assert_eq!(aethel_sdk::identity::PROJECTION_COEFFICIENTS, 1024);
+}

@@ -23,8 +23,8 @@ dependencies = [
 
 [[package]]
 name = "aethel-core"
-version = "0.4.0"
-source = "git+https://github.com/0x307/aethel-core?rev=d01258563c7aaf99226b428793873d968180e99f#d01258563c7aaf99226b428793873d968180e99f"
+version = "0.5.0"
+source = "git+https://github.com/0x307/aethel-core?rev=d234a2732fe144e53b58508287d10de2fcd0ae67#d234a2732fe144e53b58508287d10de2fcd0ae67"
 dependencies = [
  "cc",
  "chacha20poly1305",
@@ -37,7 +37,7 @@ dependencies = [
 
 [[package]]
 name = "aethel-sdk"
-version = "0.5.2"
+version = "0.6.0"
 dependencies = [
  "aethel-core",
  "bs58",

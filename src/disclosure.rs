@@ -313,7 +313,7 @@ impl Identity {
 
         Ok(Presentation {
             inner,
-            projection: crate::identity::Projection::from_component(projection),
+            projection: crate::identity::Projection::from_component(projection)?,
             schema: credential.schema.clone(),
         })
     }

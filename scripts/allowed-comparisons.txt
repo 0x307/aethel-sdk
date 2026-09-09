@@ -41,3 +41,11 @@ src/identity.rs	if offset != bytes.len() {
 # Ensuring a single-share decoder received one public envelope entry; this is
 # a structural parsing count check, not authentication-bearing data.
 src/identity.rs	if set.shares.len() != 1 {
+
+# Checking that a projection the component returned carries the vendored
+# parameter set's coefficient count. The length of a public projection vector
+# is public structural metadata: public_b is published material, and its size
+# is fixed by the module rank the artifact was built at rather than by any
+# secret. Nothing branches on a coefficient value, only on how many there are,
+# so there is no secret-dependent timing signal to leak.
+src/identity.rs	if inner.public_b.len() != PROJECTION_COEFFICIENTS {

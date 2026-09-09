@@ -52,6 +52,19 @@ fn a_substituted_component_is_refused_before_it_runs() {
     }
 }
 
+/// Flatten a rank-`K` public vector into the coefficient list the component
+/// hands back across the WIT boundary.
+///
+/// aethel-core 0.5.0 moved the identity path to module rank 4, so the native
+/// `public_b` is `[Poly; K]` rather than a single `Poly`. The WIT type did not
+/// change: `public-b` is `list<u32>` before and after, and the component sends
+/// the polynomials concatenated in order. Flattening here is what keeps this
+/// an assertion about the two implementations agreeing rather than about their
+/// Rust types.
+fn flatten(polys: &[aethel_core::plp::Poly]) -> Vec<u32> {
+    polys.iter().flat_map(|p| p.coeffs().to_vec()).collect()
+}
+
 /// A projection through the component must equal the native one, coefficient for
 /// coefficient. This is the equivalence that makes "one artifact embedded by
 /// every language" mean something: if the component drifts from the native
@@ -81,7 +94,7 @@ fn projection_through_the_component_matches_the_native_api() {
     );
     assert_eq!(
         via_component.public_b,
-        native.public_b.coeffs().to_vec(),
+        flatten(&native.public_b),
         "public_b differs between the embedded component and the native API"
     );
 }
@@ -107,7 +120,7 @@ fn the_projection_comparison_can_distinguish_contexts() {
 
     assert_ne!(
         via_component.public_b,
-        different.public_b.coeffs().to_vec(),
+        flatten(&different.public_b),
         "two different contexts produced the same projection. The comparison in \
          the test above cannot detect a mismatch and proves nothing"
     );
