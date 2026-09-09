@@ -43,6 +43,19 @@ pub const MIN_ENTROPY_BYTES: usize = 32;
 /// Minimum bytes of secret randomness required for one PLP projection: 32.
 pub const MIN_PROJECTION_RANDOMNESS_BYTES: usize = 32;
 
+/// Coefficients in a projection's public vector (b_tau): 1024.
+///
+/// The lattice module rank is part of the artifact's identity, not a tuning
+/// knob. aethel-core moved the identity path from rank 1 to rank 4 in 0.5.0,
+/// which quadrupled this length while leaving the WIT record types unchanged:
+/// `public-b` was `list<u32>` before and after. That is precisely why it is
+/// checked here. A rank-1 component still satisfies the world this crate
+/// generates bindings from, so nothing in the type system or the bindings
+/// would notice the substitution, and a shorter vector would flow through
+/// [`Projection::to_bytes`] into a well-formed encoding of a weaker parameter
+/// set.
+pub const PROJECTION_COEFFICIENTS: usize = 1024;
+
 /// The multicodec code for an ML-DSA-65 public key, registered upstream.
 ///
 /// Named rather than inlined because the byte sequence it encodes is what a
@@ -88,8 +101,16 @@ pub struct Projection {
 }
 
 impl Projection {
-    pub(crate) fn from_component(inner: EphemeralProjection) -> Self {
-        Self { inner }
+    /// Wrap a projection the component produced, refusing one whose module
+    /// rank is not the vendored parameter set's.
+    ///
+    /// Every projection reaching this crate comes through here, so this is the
+    /// one place the rank has to be checked.
+    pub(crate) fn from_component(inner: EphemeralProjection) -> Result<Self, Error> {
+        if inner.public_b.len() != PROJECTION_COEFFICIENTS {
+            return Err(Error::UnexpectedProjectionRank(inner.public_b.len()));
+        }
+        Ok(Self { inner })
     }
 
     /// The component's own representation, for passing back across the
@@ -164,6 +185,13 @@ pub enum Error {
     ///
     /// This does not reveal which sensitive share bytes were malformed.
     InvalidRecoveryMaterial(&'static str),
+    /// The component returned a projection of the wrong module rank.
+    ///
+    /// Carries the coefficient count that was returned; the expected count is
+    /// [`PROJECTION_COEFFICIENTS`]. This means the loaded component is not the
+    /// parameter set this crate vendors, so the projection is refused rather
+    /// than encoded.
+    UnexpectedProjectionRank(usize),
 }
 
 impl core::fmt::Display for Error {
@@ -184,6 +212,10 @@ impl core::fmt::Display for Error {
             Error::InvalidRecoveryMaterial(reason) => {
                 write!(f, "invalid recovery material: {reason}")
             }
+            Error::UnexpectedProjectionRank(n) => write!(
+                f,
+                "the component returned a projection with {n} coefficients, expected {PROJECTION_COEFFICIENTS}: this is not the parameter set this crate vendors"
+            ),
         }
     }
 }
@@ -652,7 +684,7 @@ impl Identity {
             .aethel_core_identity()
             .master_identity()
             .call_project_at_context(&mut self.store, self.handle, context, randomness)??;
-        Ok(Projection::from_component(projection))
+        Projection::from_component(projection)
     }
 }
 

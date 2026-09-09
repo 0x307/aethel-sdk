@@ -7,6 +7,45 @@ adheres to the breaking-change and deprecation rules in
 [`STABILITY.md`](./STABILITY.md) rather than strict SemVer prior to `1.0.0` — see that
 document for what counts as breaking inside `0.x`.
 
+## [0.6.0] - 2026-09-09
+
+Vendors `aethel-core` 0.5.0, which moves the identity path to lattice module rank 4.
+
+### Changed
+
+- **The embedded component is now `aethel-core` 0.5.0, and the identity path runs at module
+  rank 4 rather than rank 1.** A projection's `public_b` carries 1024 coefficients instead of
+  256, and a presentation's `z_s` and `z_e` are `MODULE_K` polynomials rather than one. The
+  WIT record types are unchanged across the move: `public-b`, `commitment-w` and `response-z`
+  were `list<u32>` before and after, and only their lengths differ. Bindings are generated
+  from `core/wit` at compile time, and that world is byte-identical between 0.4.0 and 0.5.0,
+  so no generated type changed.
+
+  Migration: projections and presentations produced by an earlier release do not correspond to
+  ones produced by this release, because they describe a different parameter set. Nothing
+  persisted by this crate is affected. A sealed identity written by 0.5.x still opens, still
+  signs, and its public key is unchanged; only the projections derived from it move. Any
+  `public_b` bytes stored outside this crate need to be re-derived by projecting again.
+
+- **`identity::Error` gained an `UnexpectedProjectionRank(usize)` variant.** The enum is not
+  `#[non_exhaustive]`, so an exhaustive `match` on it no longer compiles.
+
+  Migration: add an arm for the new variant, or a `_` arm.
+
+### Added
+
+- **`Projection` now refuses a projection whose coefficient count is not the vendored
+  parameter set's**, returning `Error::UnexpectedProjectionRank`. This is the reason the rank
+  move needs a guard rather than only a re-vendor: because the WIT types did not change, a
+  rank-1 component still satisfies the world these bindings are generated from, and neither
+  the type system nor the bindings would notice the substitution. A shorter vector would
+  otherwise flow through `Projection::to_bytes` into a well-formed encoding of a weaker
+  parameter set. Every projection this crate produces passes through the one constructor that
+  performs the check.
+
+- **`identity::PROJECTION_COEFFICIENTS`**, the expected count, so the rank a build is running
+  at can be asserted from outside the crate.
+
 ## [0.5.2] - 2026-09-07
 
 ### Fixed
