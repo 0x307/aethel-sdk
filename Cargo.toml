@@ -91,7 +91,7 @@ wasmtime = { version = "48.0.1", default-features = false, features = ["runtime"
 # packaging and resolves this requirement against crates.io, so a stale one
 # fails `cargo publish` long after the local build stopped caring.
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
-aethel-core = { version = "0.5", git = "https://github.com/0x307/aethel-core", rev = "d234a2732fe144e53b58508287d10de2fcd0ae67" }
+aethel-core = { version = "0.5", git = "https://github.com/0x307/aethel-core", rev = "bb6b725955ab3cfebe87703d7835ea1075020f6d" }
 
 [dev-dependencies]
 # Independent verifiers for the Multikey encoding, used only by
