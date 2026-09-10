@@ -1,6 +1,6 @@
 [package]
 name = "aethel-sdk"
-version = "0.6.1"
+version = "0.7.0"
 edition = "2021"
 description = "Ergonomic Rust SDK over aethel-core's post-quantum identity primitives: generate, sign, verify, project, disclose, recover"
 authors = ["Ed Johnson"]
@@ -91,7 +91,7 @@ wasmtime = { version = "48.0.1", default-features = false, features = ["runtime"
 # packaging and resolves this requirement against crates.io, so a stale one
 # fails `cargo publish` long after the local build stopped caring.
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
-aethel-core = { version = "0.5", git = "https://github.com/0x307/aethel-core", rev = "bb6b725955ab3cfebe87703d7835ea1075020f6d" }
+aethel-core = { version = "0.6", git = "https://github.com/0x307/aethel-core", rev = "48daed07f9e4e38249d76eb7e21d157c99ecccaf" }
 
 [dev-dependencies]
 # Independent verifiers for the Multikey encoding, used only by
