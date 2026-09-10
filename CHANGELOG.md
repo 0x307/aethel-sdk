@@ -7,6 +7,20 @@ adheres to the breaking-change and deprecation rules in
 [`STABILITY.md`](./STABILITY.md) rather than strict SemVer prior to `1.0.0` — see that
 document for what counts as breaking inside `0.x`.
 
+## [0.7.0] - 2026-09-10
+
+Vendors `aethel-core` 0.6.0 (`48daed0`).
+
+### Changed
+
+- **The embedded component is now `aethel-core` 0.6.0.** The WIT world gained three
+  functions (`plp-verify-bytes`, `encode-projection`, `encode-proof`); every existing
+  function and the `identity-error` variant ordinals are unchanged, so no existing binding
+  moved. The component now rejects projection and proof coefficients `>= Q` at the
+  boundary with `serialization-error` instead of passing them into arithmetic.
+- **The native `aethel-core` dev-dependency the execution proof compares against moved to
+  the same revision (0.6.0).**
+
 ## [0.6.0] - 2026-09-09
 
 Vendors `aethel-core` 0.5.0, which moves the identity path to lattice module rank 4.
