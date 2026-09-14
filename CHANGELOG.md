@@ -7,6 +7,27 @@ adheres to the breaking-change and deprecation rules in
 [`STABILITY.md`](./STABILITY.md) rather than strict SemVer prior to `1.0.0` — see that
 document for what counts as breaking inside `0.x`.
 
+## [0.7.1] - 2026-09-14
+
+Documentation only. No code, API or embedded-component change; the component is still
+`aethel-core` 0.6.0 (`48daed0`).
+
+### Fixed
+
+- **The README quickstart pinned `aethel-sdk = "0.3"`.** Every release before 0.7.0 is
+  yanked, so that line failed to resolve for anyone starting fresh ("0.3.2 is yanked"). It
+  now names `"0.7"`, and `tests/readme_pin.rs` fails whenever a README dependency line names
+  a minor version other than the crate's own. This release exists so the README on
+  crates.io stops showing the broken line.
+- **The README described HTSS as "5D Hypercube Threshold Secret Sharing".** What ships is
+  Shamir 3-of-5, and the README now says so.
+
+### Changed
+
+- **The quickstart milestone is marked shipped.** It was followed cold on 2026-09-14 by two
+  blind testers given only the README, crates.io and docs.rs (automated agents, not people):
+  3m33s on a clean Linux container and 3m31s on Windows.
+
 ## [0.7.0] - 2026-09-10
 
 Vendors `aethel-core` 0.6.0 (`48daed0`).
