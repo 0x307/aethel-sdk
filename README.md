@@ -79,8 +79,10 @@ four minutes is not stuck. Host platforms only: wasmtime needs mmap and cannot c
 
 - Predicate proofs over hidden attributes. See [What this cannot
   do](#what-this-cannot-do-yet)
-- A quickstart proven to work cold. One is written and run in CI; nobody who has not worked on
-  this SDK has followed it on a clean machine and been timed.
+
+The quickstart below was followed cold on 2026-09-14, against the published crate, by two
+blind testers given only this README, crates.io and docs.rs (automated agents, not people):
+3m33s on a clean Linux container and 3m31s on Windows, from nothing to a successful run.
 
 See [ROADMAP.md](./ROADMAP.md) for the milestone sequence this is built in.
 
