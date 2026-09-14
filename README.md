@@ -9,7 +9,7 @@
 `aethel-sdk` is an ergonomic Rust surface over
 [`aethel-core`](https://github.com/0x307/aethel-core)'s post-quantum identity primitives.
 Where `aethel-core` exposes the cryptographic building blocks (Polymorphic Lattice
-Projection, Selective Attribute Attestation, 5D Hypercube Threshold Secret Sharing) as a
+Projection, Selective Attribute Attestation, Shamir 3-of-5 threshold secret sharing) as a
 `no_std`/WASM component, this crate gives an application developer the everyday verbs on top
 of it:
 
@@ -22,7 +22,7 @@ of it:
 
 ```toml
 [dependencies]
-aethel-sdk = "0.3"
+aethel-sdk = "0.7"
 ```
 
 **Before you add it:** this crate embeds a WebAssembly runtime, so `cargo add aethel-sdk` pulls
@@ -88,7 +88,7 @@ See [ROADMAP.md](./ROADMAP.md) for the milestone sequence this is built in.
 
 ```toml
 [dependencies]
-aethel-sdk = "0.3"
+aethel-sdk = "0.7"
 ```
 
 ```rust
