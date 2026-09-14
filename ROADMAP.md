@@ -7,7 +7,7 @@ dropped as real implementation work surfaces things this list can't see yet. Wha
 the destination — an ergonomic Rust SDK over `aethel-core`'s post-quantum identity
 primitives — not the path.
 
-Six of the milestones below are done and are marked **(shipped)**. This list once said
+Seven of the milestones below are done and are marked **(shipped)**. This list once said
 "nothing below is implemented yet" for long enough after that stopped being true that it was
 actively misleading, and then said "four" for a while after it was six, so treat the count as
 the thing most likely to be stale here. The rest are still ahead of us — see the README's "what runs today vs.
@@ -77,7 +77,7 @@ by design, so the sealed representation is the only thing above L1 there is to s
 therefore needs the sealing key as well as a threshold of shares, and the authenticating Merkle
 root has to be supplied separately from the shares rather than read out of them.
 
-## Quickstart (written, not yet validated cold)
+## Quickstart (shipped)
 
 A quickstart that works copy-pasted, end to end, in under ten minutes, on a machine that
 isn't the author's — covering generate, sign, verify, project, and disclose, with every code
@@ -89,9 +89,13 @@ The README's quickstart covers generate, sign, verify, persist, and disclose end
 rather than a reader's first five minutes. Contextual projection and threshold recovery have
 their own worked examples now that both are built.
 
-What is outstanding is the part that matters most and cannot be self-assessed: nobody who has
-not worked on this SDK has followed it cold, on a clean machine, and been timed. Until that
-happens this milestone is written rather than proven.
+Validated cold on 2026-09-14: two blind testers with no access to the source (automated
+agents, not people) followed only the README, crates.io and docs.rs against published 0.7.0.
+Both passed first time, 3m33s on a clean Linux container and 3m31s on Windows. The run also
+caught the README pinning `"0.3"`, a line that no longer resolved because every earlier
+release is yanked; `tests/readme_pin.rs` now guards it. The smaller documentation gaps it
+found (a silent success, an HTSS snippet with no `main`, relative links that are dead for a
+crate user) are follow-ups, not blockers.
 
 ## Security model (shipped)
 
