@@ -7,7 +7,8 @@
 //! breaks here breaks at compile time rather than at runtime.
 //!
 //! This module loads and instantiates. It does not wrap the operations in
-//! anything ergonomic: [`crate::identity`] and [`crate::disclosure`] do that.
+//! anything ergonomic: [`crate::identity`] does that (and `crate::disclosure`,
+//! behind the `experimental-credentials` feature).
 //! This module intentionally remains a low-level loader: ergonomic contextual
 //! projection and threshold recovery live in `crate::identity`.
 

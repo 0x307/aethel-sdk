@@ -3,11 +3,15 @@
 //! `identity.rs` and `disclosure.rs` prove the free-function contracts. This
 //! file proves `Verifier::verify` and `Verifier::verify_presentation` agree
 //! with `verify` and `verify_presentation` on the same inputs, and that one
-//! `Verifier` can be reused across multiple verifications.
+//! `Verifier` can be reused across multiple verifications. The presentation
+//! half needs the `experimental-credentials` feature.
 
 #![cfg(not(target_arch = "wasm32"))]
 
-use aethel_sdk::{verify, verify_presentation, Identity, Verifier};
+use aethel_sdk::{verify, Identity, Verifier};
+
+#[cfg(feature = "experimental-credentials")]
+use aethel_sdk::verify_presentation;
 
 #[test]
 fn a_held_verifier_agrees_with_the_free_function_for_signatures() {
@@ -30,6 +34,7 @@ fn a_held_verifier_agrees_with_the_free_function_for_signatures() {
         .expect("verify"));
 }
 
+#[cfg(feature = "experimental-credentials")]
 #[test]
 fn a_held_verifier_agrees_with_the_free_function_for_presentations() {
     let mut identity = Identity::generate().expect("generate");

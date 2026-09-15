@@ -25,31 +25,22 @@
 //!
 //! # Read this before the feature list
 //!
-//! Two limits decide whether this crate is usable for what you have in mind,
-//! and both are easy to miss because everything else here works.
-//!
-//! **Disclosed attributes are self-asserted.** A verified presentation proves
-//! the disclosed values open under an issuer's public parameters. It does not
-//! prove an issuer authorised them. Those parameters are published, and a
-//! holder must hold them to present at all, so anyone can build a credential
-//! over their own identity with attributes of their choosing and it will
-//! verify. If you need "the issuer said this" rather than "the holder says this
-//! and the shape is right", this is not that yet. See
-//! [`verify_presentation`] and `docs/ISSUER-AUTHENTICATION.md` in `aethel-core`.
-//!
-//! **A presentation cannot leave the process that made it.** [`Presentation`]
-//! has no serialised form, so holder and verifier are the same process today.
-//!
-//! Neither is a limit of the underlying cryptography. Both are places the
-//! surface is unfinished, and they are stated here rather than on the type
-//! pages because they determine whether the feature list below is worth
-//! reading. What does work stands on its own: post-quantum signing, sealed
+//! This crate is **identity-only** by default: post-quantum signing, sealed
 //! persistence, threshold recovery, and context-bound projections that are
 //! unlinkable across contexts.
 //!
+//! **Credentials are off by default, behind the `experimental-credentials`
+//! feature, and should not be relied on.** `aethel-core`'s `SECURITY.md`
+//! records that the credential commitment does not hide what it commits to: a
+//! presentation reveals every attribute it carries, disclosed or not, and two
+//! presentations of one credential are linkable. Disclosed attributes are also
+//! self-asserted, and a presentation cannot leave the process that made it.
+//! Fixing that is a separate line of work, and until it lands the feature
+//! exists so the work can continue in public, not for production use.
+//!
 //! Fuller worked examples are in `examples/` in the published package:
-//! `quickstart.rs` (generate, sign, verify, persist, disclose), `projection.rs`,
-//! and `bench_verify.rs`. Run them with `cargo run --example quickstart` from a
+//! `quickstart.rs` (generate, sign, verify, persist, project) and
+//! `projection.rs`. Run them with `cargo run --example quickstart` from a
 //! checkout of the repository.
 //!
 //! # Before you add this crate
@@ -77,7 +68,6 @@
 //!   both can substitute an entire recovery set.
 //! - **Projection randomness must be fresh and secret**, and never derived from
 //!   the context. [`Identity::project_at`] does this for you.
-//! - **Disclosed attributes are self-asserted**, as above.
 //! - **Entropy quality is yours.** Generation is deterministic in its entropy,
 //!   so weak entropy means a predictable identity, and the component cannot
 //!   tell the difference.
@@ -117,10 +107,11 @@
 //!   authenticated 3-of-5 recovery over the canonical sealed identity
 //! - [`Identity::public_key_multibase`], the public key as a W3C Multikey
 //! - [`Identity::project_at`], fresh, context-bound PLP projections
-//! - [`Identity::issue_credential`], BDLOP issuance over named attributes
-//! - [`Identity::present`] and [`verify_presentation`], SAAP selective
-//!   disclosure: the verifier learns the disclosed attributes and nothing about
-//!   the hidden ones
+//!
+//! With the `experimental-credentials` feature, `Identity::issue_credential`,
+//! `Identity::present` and `verify_presentation` are compiled in as well. They
+//! run, and their tests pass in CI, but they are not safe to rely on: see the
+//! top of this page.
 //!
 //! # What is not on this surface
 //!
@@ -130,28 +121,12 @@
 //!
 //! # What is not built anywhere
 //!
-//! - **Issuer-authenticated issuance.** Verification no longer needs the issuer
-//!   seed: [`verify_presentation`] takes [`IssuerPublicParameters`], so a
-//!   verifier holds no secret and a compromised verifier cannot issue against
-//!   anyone else's identity. What that does *not* buy is unforgeable attributes.
-//!   The relation checks that a presentation opens under the issuer's
-//!   parameters, not that an issuer authorised the values, and a holder must
-//!   hold those parameters to present at all. So a holder can self-assert:
-//!   construct a credential over their own identity with attributes of their
-//!   choosing, and it verifies. Deployments where holders are not trusted to
-//!   state their own attributes need the issuer's signature over the credential,
-//!   which is not shipped. See `docs/ISSUER-AUTHENTICATION.md` in `aethel-core`.
-//! - **Predicate proofs over hidden values.** "Age over 21 without revealing
-//!   age" does not work. Selective disclosure reveals the exact value of a
-//!   disclosed attribute; it cannot prove a bound on an undisclosed one. This is
-//!   RFC 5.6 relation 3, deliberately deferred, with three `identity-error`
-//!   variants reserved upstream for it.
-//! - **Revocation and key rotation.** There is no revocation list, no expiry, no
-//!   epoch on a credential or presentation, and no way to bind an identity to a
-//!   successor.
-//! - **Issuance orchestration.** `issue_credential` is one local call and needs
-//!   the issuer seed in this process. There is no two-party issuer/holder
-//!   protocol.
+//! - **Key rotation.** There is no way to bind an identity to a successor.
+//! - **Everything credential-shaped beyond the experimental feature**: a
+//!   commitment that hides, issuer-authenticated issuance, two-party issuance,
+//!   revocation and expiry, and a way to prove a threshold over a hidden value.
+//!   That is the credential line of work, and the expected `1.0` is identity
+//!   plus credentials once it lands.
 //!
 //! # A correction
 //!
@@ -159,7 +134,9 @@
 //! none of them is callable from this crate yet", and that "SAAP selective
 //! disclosure does not work in the embedded component" because `saap-verify`
 //! denied unconditionally. Both were true once and neither is true now. The
-//! quickstart in this repository exercises exactly those paths and passes.
+//! credential tests, run in CI with `--features experimental-credentials`,
+//! exercise those paths and pass. Passing is not the same as sound, which is why
+//! the feature is off by default.
 
 pub mod artifact;
 
@@ -169,13 +146,14 @@ pub mod component;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod identity;
 
-#[cfg(not(target_arch = "wasm32"))]
+/// Credentials. Off by default: see the crate docs for why.
+#[cfg(all(not(target_arch = "wasm32"), feature = "experimental-credentials"))]
 pub mod disclosure;
 
 #[cfg(not(target_arch = "wasm32"))]
 pub mod verifier;
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(all(not(target_arch = "wasm32"), feature = "experimental-credentials"))]
 pub use disclosure::{
     verify_presentation, Credential, IssuerPublicParameters, Presentation, MAX_ATTRIBUTES,
     MIN_ISSUER_SEED_BYTES,
@@ -186,3 +164,16 @@ pub use identity::{verify, Identity, Projection, RecoveryShare, RecoveryShareSet
 
 #[cfg(not(target_arch = "wasm32"))]
 pub use verifier::Verifier;
+
+/// The credential API must not be reachable without its feature.
+///
+/// This module is compiled only when the feature is off, so its doctest runs in
+/// exactly the configuration it checks. Pinned to E0432 (unresolved import), so
+/// the doctest cannot pass by failing for some unrelated reason.
+///
+/// ```compile_fail,E0432
+/// use aethel_sdk::Credential;
+/// fn main() {}
+/// ```
+#[cfg(all(not(target_arch = "wasm32"), not(feature = "experimental-credentials")))]
+mod credentials_are_gated {}

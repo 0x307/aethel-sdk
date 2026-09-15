@@ -17,8 +17,10 @@ of it:
 - **Sign** a message and **verify** a signature
 - **Project** an identity into a caller-supplied context (PLP), with fresh
   per-projection randomness so repeated projections are independent
-- **Disclose** selected attributes without revealing the rest (SAAP)
 - **Recover** an identity from threshold shares (HTSS)
+
+Credentials (selective disclosure) are **off by default**, behind the `experimental-credentials`
+feature, and should not be relied on yet. See [Experimental: credentials](#experimental-credentials).
 
 ```toml
 [dependencies]
@@ -48,13 +50,6 @@ four minutes is not stuck. Host platforms only: wasmtime needs mmap and cannot c
   inside the component and stays there.
 - **Persist an identity and load it again**, on the same machine or another.
   `Identity::export_sealed()` and `Identity::open_sealed()`.
-- **Selective disclosure.** Issue a credential over named attributes, present it disclosing only
-  the ones you choose, and verify the presentation. `issue_credential()`, `present()` and
-  `verify_presentation()`. Verification takes the issuer's **public parameters**, never the
-  issuer seed, so a verifier holds no secret. Note that a presentation proves the credential
-  opens under those parameters, not that an issuer authorised the values: disclosed attributes
-  are self-asserted until issuer-authenticated issuance ships. See
-  [`SECURITY-MODEL.md`](./SECURITY-MODEL.md).
 - **Contextual projection.** `Identity::project_at(context)` obtains fresh OS randomness for
   each call and returns public context-bound material without exposing the identity's master
   secret.
@@ -77,12 +72,12 @@ four minutes is not stuck. Host platforms only: wasmtime needs mmap and cannot c
 
 **Designed, not yet implemented:**
 
-- Predicate proofs over hidden attributes. See [What this cannot
-  do](#what-this-cannot-do-yet)
+- Credentials that are safe to rely on. See [Experimental: credentials](#experimental-credentials).
 
-The quickstart below was followed cold on 2026-09-14, against the published crate, by two
-blind testers given only this README, crates.io and docs.rs (automated agents, not people):
-3m33s on a clean Linux container and 3m31s on Windows, from nothing to a successful run.
+The 0.7.x quickstart, which also exercised credentials, was followed cold on 2026-09-14 against
+the published crate by two blind testers given only this README, crates.io and docs.rs (automated
+agents, not people): 3m33s on a clean Linux container and 3m31s on Windows. The identity-only
+quickstart below replaces it and gets the same check at the next release.
 
 See [ROADMAP.md](./ROADMAP.md) for the milestone sequence this is built in.
 
@@ -94,7 +89,7 @@ aethel-sdk = "0.7"
 ```
 
 ```rust
-use aethel_sdk::{verify, verify_presentation, Identity, IssuerPublicParameters};
+use aethel_sdk::{verify, Identity};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Entropy comes from the OS. The signing key is derived from it inside the
@@ -117,24 +112,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let sealed = identity.export_sealed(key)?;
     let mut identity = Identity::open_sealed(&sealed, key)?;
 
-    // Issue a credential over named attributes, and disclose only one of them.
-    let credential = identity.issue_credential(
-        b"the issuer's secret seed, 32 byte",
-        &[("tier", 3), ("date_of_birth", 19_900_101)],
-    )?;
-    let presentation = identity.present(&credential, b"checkout-session", &["tier"])?;
+    // Project the identity into a context. Each call uses fresh secret
+    // randomness, so two projections at the same context are independent, and
+    // neither exposes the master secret.
+    let first = identity.project_at(b"checkout-session")?;
+    let second = identity.project_at(b"checkout-session")?;
+    assert_ne!(first.salt(), second.salt());
 
-    // The verifier learns the tier and nothing about the date of birth.
-    assert_eq!(presentation.disclosed().get("tier"), Some(&3));
-    assert!(presentation.disclosed().get("date_of_birth").is_none());
-    // Verification takes the issuer's public parameters, never the seed.
-    let issuer = IssuerPublicParameters::derive(b"the issuer's secret seed, 32 byte")?;
-    assert!(verify_presentation(
-        &issuer,
-        &presentation,
-        b"checkout-session",
-    )?);
-
+    println!("ok: signed, verified, sealed, reopened and projected {multikey:.16}...");
     Ok(())
 }
 ```
@@ -345,23 +330,34 @@ That re-vendors the WIT world, rebuilds the artifact, rewrites the declared hash
 the pin. Bindings are generated from `core/wit/` at compile time, so a reshaped world is
 picked up by the next `cargo build` with nothing hand-written to update.
 
-## What this cannot do yet
+## Experimental: credentials
 
-**Predicate proofs over hidden attributes are not implemented.** You can disclose an attribute's
-value, or keep it hidden. You cannot prove a statement *about* a hidden value.
+Selective disclosure (issue a credential over named attributes, present it revealing only some of
+them, verify the presentation) is compiled only with the `experimental-credentials` feature:
 
-So this works:
+```toml
+[dependencies.aethel-sdk]
+version = "0.7"
+features = ["experimental-credentials"]
+```
 
-> "I hold a credential from this issuer, and my `tier` is 3."
+It is off by default because it should not be relied on yet:
 
-and this does not:
+- **The commitment does not hide.** `aethel-core`'s `SECURITY.md` records that a presentation
+  reveals every attribute it commits to, disclosed or not, and that two presentations of one
+  credential are linkable. The defect is in the specified commitment shape, and fixing it is the
+  first piece of the credential work.
+- **Disclosed attributes are self-asserted.** A presentation proves the credential opens under the
+  issuer's public parameters, not that an issuer authorised the values. See
+  [`SECURITY-MODEL.md`](./SECURITY-MODEL.md).
+- **A presentation cannot leave the process that made it.** It has no serialised form yet.
+- **You cannot prove a threshold over a hidden value.** "My age is at least 21, and I am not
+  telling you my age" cannot be built on this proof system. The planned answer is attributes the
+  issuer attests to directly, such as an `over_21` flag.
 
-> "I hold a credential from this issuer, and my `age` is at least 21, and I am not telling you
-> my age."
-
-The second is the case most people want from selective disclosure, and it is the third of the
-protocol's three relations. It is scoped to a later phase, and until then the honest answer is
-that you disclose the value.
+The feature exists so the credential work can continue in public, with its tests running in CI.
+Credentials come back on by default once they are sound, and identity plus credentials is the
+expected `1.0`.
 
 ## Stability and support
 
