@@ -2,7 +2,7 @@
 name = "aethel-sdk"
 version = "0.7.1"
 edition = "2021"
-description = "Ergonomic Rust SDK over aethel-core's post-quantum identity primitives: generate, sign, verify, project, disclose, recover"
+description = "Ergonomic Rust SDK over aethel-core's post-quantum identity primitives: generate, sign, verify, project, recover"
 authors = ["Ed Johnson"]
 license = "Apache-2.0"
 repository = "https://github.com/0x307/aethel-sdk"
@@ -44,6 +44,23 @@ include = [
 
 [lib]
 name = "aethel_sdk"
+
+[features]
+# Credentials (SAAP selective disclosure) are OFF by default and should not be
+# relied on. aethel-core's SECURITY.md records that the credential commitment
+# does not hide what it commits to: a presentation reveals every attribute it
+# carries, disclosed or not. The feature keeps the credential API compiling and
+# tested so that work can continue in public. It is not for production use.
+experimental-credentials = []
+
+# Credential tests and the presentation benchmark only exist with the feature.
+[[test]]
+name = "disclosure"
+required-features = ["experimental-credentials"]
+
+[[example]]
+name = "bench_verify"
+required-features = ["experimental-credentials"]
 
 [dependencies]
 # A digest over the embedded artifact, to detect a substituted component. This

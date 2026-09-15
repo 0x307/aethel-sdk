@@ -1,7 +1,7 @@
 //! The README quickstart, kept as an example so it is compiled and run rather
 //! than believed. If this stops working, CI notices before a reader does.
 
-use aethel_sdk::{verify, verify_presentation, Identity, IssuerPublicParameters};
+use aethel_sdk::{verify, Identity};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Entropy comes from the OS. The signing key is derived from it inside the
@@ -28,24 +28,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let sealed = identity.export_sealed(key)?;
     let mut identity = Identity::open_sealed(&sealed, key)?;
 
-    // Issue a credential over named attributes, and disclose only one of them.
-    let credential = identity.issue_credential(
-        b"the issuer's secret seed, 32 byte",
-        &[("tier", 3), ("date_of_birth", 19_900_101)],
-    )?;
-    let presentation = identity.present(&credential, b"checkout-session", &["tier"])?;
+    // Project the identity into a context. Each call uses fresh secret
+    // randomness, so two projections at the same context are independent, and
+    // neither exposes the master secret.
+    let first = identity.project_at(b"checkout-session")?;
+    let second = identity.project_at(b"checkout-session")?;
+    assert_ne!(first.salt(), second.salt());
 
-    // The verifier learns the tier and nothing about the date of birth.
-    assert_eq!(presentation.disclosed().get("tier"), Some(&3));
-    assert!(!presentation.disclosed().contains_key("date_of_birth"));
-    // Verification takes the issuer's public parameters, never the seed. Derive
-    // them once from the seed and publish them; a verifier needs nothing secret.
-    let issuer = IssuerPublicParameters::derive(b"the issuer's secret seed, 32 byte")?;
-    assert!(verify_presentation(
-        &issuer,
-        &presentation,
-        b"checkout-session",
-    )?);
-
+    println!("ok: signed, verified, sealed, reopened and projected {multikey:.16}...");
     Ok(())
 }

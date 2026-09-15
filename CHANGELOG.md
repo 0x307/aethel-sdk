@@ -7,6 +7,30 @@ adheres to the breaking-change and deprecation rules in
 [`STABILITY.md`](./STABILITY.md) rather than strict SemVer prior to `1.0.0` — see that
 document for what counts as breaking inside `0.x`.
 
+## [Unreleased]
+
+Aethel ships identity-only. Credentials are a separate line of work, and they come back on by
+default once they are sound.
+
+### Changed (BREAKING)
+
+- **The credential API is behind a new `experimental-credentials` feature, off by default.**
+  `Credential`, `Presentation`, `IssuerPublicParameters`, `verify_presentation`,
+  `MAX_ATTRIBUTES`, `MIN_ISSUER_SEED_BYTES`, `Identity::issue_credential`, `Identity::present`
+  and `Verifier::verify_presentation` no longer compile without it. Reason: `aethel-core`'s
+  `SECURITY.md` records that the credential commitment does not hide what it commits to, so a
+  presentation reveals every attribute it carries, disclosed or not. That should not be on in a
+  default build. Migration, if you depend on it anyway: enable the feature on the dependency
+  (`features = ["experimental-credentials"]`).
+- **The README quickstart and `examples/quickstart.rs` are identity-only**: generate, sign,
+  verify, Multikey, seal and reopen, project. The quickstart now prints a line when it succeeds,
+  instead of exiting silently.
+
+### Added
+
+- A `compile_fail` doctest that proves `aethel_sdk::Credential` is unreachable without the
+  feature, and CI steps that build and test with the feature, so gated code cannot rot unseen.
+
 ## [0.7.1] - 2026-09-14
 
 Documentation only. No code, API or embedded-component change; the component is still

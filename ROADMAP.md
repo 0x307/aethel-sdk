@@ -62,7 +62,12 @@ proof. Documented with a worked example — "prove one thing without revealing t
 Shipped as disclosure over a credential's own named attributes
 (`issue_credential()`/`present()`/`verify_presentation()`); it does not sit on top of a PLP
 projection yet, since it was built before that milestone. Predicate proofs over a hidden
-attribute are also not implemented — see the README's "what this cannot do" section.
+attribute are also not implemented.
+
+Since 0.8.0 this is **off by default**, behind the `experimental-credentials` feature.
+`aethel-core`'s `SECURITY.md` records that the credential commitment does not hide what it
+commits to, so credentials continue as their own line of work and come back on by default once
+they are sound. See the README's "Experimental: credentials" section.
 
 ## HTSS recovery (shipped)
 

@@ -115,6 +115,9 @@ impl Projection {
 
     /// The component's own representation, for passing back across the
     /// boundary. Crate-internal: this type is not nameable by a consumer.
+    /// Only the credential path uses it today, so it is unused in a default
+    /// build; PLP proof verification (COR-4) is expected to use it too.
+    #[cfg_attr(not(feature = "experimental-credentials"), allow(dead_code))]
     pub(crate) fn as_component(&self) -> &EphemeralProjection {
         &self.inner
     }

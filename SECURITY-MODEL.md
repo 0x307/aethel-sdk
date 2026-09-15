@@ -78,6 +78,12 @@ path to use. `project_at_with_randomness` exists for reproducibility; its random
 be derived from the context or from identity data. Reusing it at one context is safe, because
 that carries no new sample to average. Deriving it deterministically is not.
 
+**Credentials are off by default, and not safe to rely on when switched on.** They sit behind
+the `experimental-credentials` feature because `aethel-core`'s `SECURITY.md` records that the
+credential commitment does not hide what it commits to: a presentation reveals every attribute
+it carries, disclosed or not, and two presentations of one credential are linkable. Everything
+below about credentials describes how they are meant to behave once that is fixed.
+
 **Disclosed attributes are self-asserted.** This is the one most likely to be
 over-read, because selective disclosure sounds like it carries an issuer's word.
 It does not, yet. Verification checks that a presentation opens to a short
@@ -126,7 +132,7 @@ memory while a process holds an identity.
 about it.
 
 **Predicate proofs.** Not implemented. You disclose an attribute's value or you keep it hidden;
-you cannot prove a statement about a hidden value. See the README's "What this cannot do yet".
+you cannot prove a statement about a hidden value. See the README's "Experimental: credentials".
 
 **The correctness of `aethel-core`'s constructions.** The security of PLP, SAAP and HTSS rests
 on `aethel-core`'s stated assumptions, notably M-LWE. This crate's tests check observable

@@ -1,7 +1,8 @@
 //! Owning the compiled component for the lifetime of a verifier.
 //!
-//! [`verify`](crate::verify) and [`verify_presentation`](crate::verify_presentation)
-//! already share one process-wide compile through [`component::shared`], so
+//! [`verify`](crate::verify) (and `verify_presentation`, with the
+//! `experimental-credentials` feature) already share one process-wide compile
+//! through [`component::shared`], so
 //! [`Verifier`] is not here to make verification cheaper: it makes the timing
 //! of that cost a choice. The free functions pay the 230 ms first-use compile
 //! whenever the first verification happens to land. `Verifier::new` pays it at
@@ -27,13 +28,15 @@
 //! component.
 
 use crate::component;
+#[cfg(feature = "experimental-credentials")]
 use crate::disclosure::Presentation;
 use crate::identity::Error;
 
 /// A verifier that owns its compiled runtime.
 ///
 /// Construct once, hold it for as long as verification is needed, and call
-/// [`Verifier::verify`] or [`Verifier::verify_presentation`] as many times as
+/// [`Verifier::verify`] (or `verify_presentation`, with the
+/// `experimental-credentials` feature) as many times as
 /// you like. Each call instantiates a fresh `Store` against the runtime this
 /// struct already compiled; nothing about that per-call step differs from
 /// what the free functions do.
@@ -88,7 +91,8 @@ impl Verifier {
         Ok(verified)
     }
 
-    /// Verify a presentation.
+    /// Verify a presentation. Requires the `experimental-credentials` feature,
+    /// which is off by default: see the crate docs for why.
     ///
     /// Same contract as the free function [`crate::verify_presentation`]:
     /// `expected_context` must match the context the presentation was made
@@ -97,6 +101,7 @@ impl Verifier {
     /// Takes [`crate::IssuerPublicParameters`], not the issuer seed: a verifier
     /// needs no secret. This is the shape a request-path verifier wants, since
     /// the parameters are derived once and held.
+    #[cfg(feature = "experimental-credentials")]
     pub fn verify_presentation(
         &self,
         issuer: &crate::disclosure::IssuerPublicParameters,

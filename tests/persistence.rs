@@ -161,7 +161,9 @@ fn the_at_rest_leak_check_can_detect_a_leak() {
     );
 }
 
-/// A reopened identity is usable for everything, not only signing.
+/// A reopened identity can still issue and present. Credentials are behind the
+/// `experimental-credentials` feature, so this runs only with it.
+#[cfg(feature = "experimental-credentials")]
 #[test]
 fn a_reopened_identity_can_issue_and_present() {
     let mut original = Identity::generate().expect("generate");
