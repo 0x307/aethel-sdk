@@ -47,7 +47,7 @@ cat > "$out/build.sh" <<'INNER'
 set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
-apt-get install -y -qq curl ca-certificates git xz-utils gcc >/dev/null
+apt-get install -y -qq curl ca-certificates git xz-utils gcc python3 >/dev/null
 
 # Mirror the CI runner's paths. rustc embeds them, so they are part of the
 # artifact's identity.
@@ -57,6 +57,14 @@ cd /home/runner/work/aethel-core
 git clone -q "$CORE_REPO" aethel-core
 cd aethel-core
 git checkout -q "$CORE_REV"
+
+# Fail before the slow build if the pinned revision predates the checker.
+checker=scripts/check-component-exports.py
+if [ ! -f "$checker" ]; then
+  echo "Pinned aethel-core revision $CORE_REV lacks $checker." >&2
+  echo "Update core/pin.toml to a revision that provides the canonical checker." >&2
+  exit 1
+fi
 
 curl -sSf https://sh.rustup.rs -o /tmp/rustup.sh
 sh /tmp/rustup.sh -y --default-toolchain "$RUST_VERSION" \
@@ -82,14 +90,8 @@ build_once() {
 build_once /tmp/build1.wasm
 wasm-tools validate /tmp/build1.wasm
 
-# Consume the checker from the exact revision being synced. Its WIT-derived
-# comparison covers free functions and resource methods with exact set equality.
-checker=scripts/check-component-exports.py
-if [ ! -f "$checker" ]; then
-  echo "Pinned aethel-core revision $CORE_REV lacks $checker." >&2
-  echo "Update core/pin.toml to a revision that provides the canonical checker." >&2
-  exit 1
-fi
+# Consume the checker from the exact revision being synced. It compares the
+# export set for exact equality and every interface's types and signatures.
 python3 "$checker" wit/aethel-core.wit /tmp/build1.wasm
 
 # Same claim the CI job makes, made here so a local re-vendor cannot silently
