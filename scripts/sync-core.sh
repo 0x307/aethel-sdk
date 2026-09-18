@@ -82,17 +82,15 @@ build_once() {
 build_once /tmp/build1.wasm
 wasm-tools validate /tmp/build1.wasm
 
-# Every operation the world declares must survive into the artifact. A component
-# that validates but is missing an export is a component that does not implement
-# the world it claims.
-wasm-tools component wit /tmp/build1.wasm > /tmp/embedded.wit
-# (saap-prove / saap-verify on the old `attestation` interface were removed in
-# aethel-core 0.1.5: superseded by saap-verify-presentation.)
-for op in plp-project-at-context plp-prove-identity plp-verify \
-          saap-verify-presentation verify-signature \
-          htss-split htss-reconstruct; do
-  grep -q "$op" /tmp/embedded.wit || { echo "MISSING from component: $op"; exit 1; }
-done
+# Consume the checker from the exact revision being synced. Its WIT-derived
+# comparison covers free functions and resource methods with exact set equality.
+checker=scripts/check-component-exports.py
+if [ ! -f "$checker" ]; then
+  echo "Pinned aethel-core revision $CORE_REV lacks $checker." >&2
+  echo "Update core/pin.toml to a revision that provides the canonical checker." >&2
+  exit 1
+fi
+python3 "$checker" wit/aethel-core.wit /tmp/build1.wasm
 
 # Same claim the CI job makes, made here so a local re-vendor cannot silently
 # produce a one-off artifact.
@@ -105,7 +103,6 @@ cmp -s /tmp/build1.wasm /tmp/build2.wasm || {
 
 cp /tmp/build1.wasm /out/aethel_core.component.wasm
 cp wit/aethel-core.wit /out/aethel-core.wit
-cp /tmp/embedded.wit /out/embedded.wit
 git rev-parse HEAD > /out/rev
 ( cd /tmp && sha256sum build1.wasm | sed 's#build1.wasm#aethel_core.component.wasm#' ) > /out/component.sha256
 echo "built $(cat /out/component.sha256)"
