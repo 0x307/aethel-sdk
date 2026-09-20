@@ -23,8 +23,8 @@ dependencies = [
 
 [[package]]
 name = "aethel-core"
-version = "0.6.0"
-source = "git+https://github.com/0x307/aethel-core?rev=48daed07f9e4e38249d76eb7e21d157c99ecccaf#48daed07f9e4e38249d76eb7e21d157c99ecccaf"
+version = "0.6.1"
+source = "git+https://github.com/0x307/aethel-core?rev=1a61a140512d51f4e92625cbd2b41fe8ac90f954#1a61a140512d51f4e92625cbd2b41fe8ac90f954"
 dependencies = [
  "cc",
  "chacha20poly1305",

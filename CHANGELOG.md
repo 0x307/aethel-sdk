@@ -26,10 +26,38 @@ default once they are sound.
   verify, Multikey, seal and reopen, project. The quickstart now prints a line when it succeeds,
   instead of exiting silently.
 
+### Changed
+
+- **The embedded component is now `aethel-core` 0.6.1 (`1a61a14`).** No change to the public
+  API, the WIT world or behaviour — the only source change between 0.6.0 and 0.6.1 is a doc
+  comment. `core/wit/aethel-core.wit` is byte-identical, and the native dev-dependency the
+  execution proof compares against moved to the same revision.
+- **The component export check is computed from the WIT instead of a hardcoded list.** CI and
+  `scripts/sync-core.sh` now run `check-component-exports.py` from the pinned `aethel-core`
+  revision, which derives the expected surface from `core/wit/aethel-core.wit` and compares it
+  for set equality, types and signatures included. The list it replaces named seven free
+  functions and no resource methods, so a component missing `credential.present` passed it in
+  both repos. Adding a function to the WIT and not to the component now fails the job with no
+  workflow edit.
+- **`scripts/sync-core.sh` rewrites the `aethel-core` dev-dependency's `rev` alongside
+  `core/pin.toml`.** It used to move the pin and leave `Cargo.toml` alone, creating on every
+  run the drift `the_dev_dependency_matches_the_vendored_revision` exists to catch; that drift
+  was then reconciled by hand twice. The script also now recommends `cargo test --all-features`,
+  because a default run cannot see the credential surface the export check was rewritten to
+  cover.
+
 ### Added
 
 - A `compile_fail` doctest that proves `aethel_sdk::Credential` is unreachable without the
   feature, and CI steps that build and test with the feature, so gated code cannot rot unseen.
+- **`tests/build_inputs.rs`, which fails if `build.rs` stops declaring a component input.**
+  `build.rs` is the entire fix for the 0.4.0 stale-bindings incident and nothing tested it:
+  deleting a `rerun-if-changed` line left every other test in the crate green.
+- **A CI step that runs the pinned checker's own test suite before trusting it.** This repo
+  consumes the export check rather than defining it, so the checker's ability to fail is part
+  of what the pin selects. `aethel-core` pairs the checker with a negative control that strips
+  `credential.present` and requires rejection; this step is that control's consumer-side half,
+  and catches a future pin to a revision whose checker cannot fail.
 
 ## [0.7.1] - 2026-09-14
 

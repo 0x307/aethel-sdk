@@ -52,6 +52,28 @@ jobs:
           cd /home/runner/work/aethel-core/aethel-core
           git checkout --quiet ${{ steps.pin.outputs.rev }}
           echo "aethel-core at $(git rev-parse HEAD)"
+          for f in scripts/check-component-exports.py \
+                   scripts/test_check_component_exports.py; do
+            if [ ! -f "$f" ]; then
+              echo "The pinned aethel-core revision lacks $f."
+              exit 1
+            fi
+          done
+
+      # This repo does not define the export check, it consumes one from the
+      # pinned revision. That makes the checker's own test part of what is being
+      # pinned, and running it here is what stops this job from trusting a
+      # checker it has never seen fail.
+      #
+      # aethel-core pairs the checker with a negative control that strips
+      # `credential.present` — a resource method, the class its old hardcoded
+      # loop never covered — and requires the checker to reject it. That control
+      # guards aethel-core's CI. This step is the consumer-side half: it guards
+      # against a future pin to a revision whose checker cannot fail, which
+      # would silently turn every export check below into a green no-op.
+      - name: The checker must be able to fail
+        working-directory: /home/runner/work/aethel-core/aethel-core
+        run: python3 scripts/test_check_component_exports.py
 
       - name: The vendored WIT must be the pinned revision's WIT
         run: |
@@ -62,6 +84,12 @@ jobs:
             exit 1
           fi
           echo "vendored WIT matches the pinned revision"
+
+      - name: The embedded component must expose exactly the vendored world
+        run: |
+          wasm-tools validate core/aethel_core.component.wasm
+          python3 /home/runner/work/aethel-core/aethel-core/scripts/check-component-exports.py \
+            core/wit/aethel-core.wit core/aethel_core.component.wasm
 
       - name: Build the component
         working-directory: /home/runner/work/aethel-core/aethel-core
@@ -75,18 +103,11 @@ jobs:
             target/wasm32-unknown-unknown/release/aethel_core.wasm \
             -o /tmp/build1.component.wasm
 
-      - name: The component must validate and expose the declared world
+      - name: The rebuilt component must expose exactly the vendored world
         run: |
           wasm-tools validate /tmp/build1.component.wasm
-          wasm-tools component wit /tmp/build1.component.wasm > /tmp/embedded.wit
-          # (saap-prove / saap-verify on the old `attestation` interface were
-          # removed in aethel-core 0.1.5: superseded by saap-verify-presentation.)
-          for op in plp-project-at-context plp-prove-identity plp-verify \
-                    saap-verify-presentation verify-signature \
-                    htss-split htss-reconstruct; do
-            grep -q "$op" /tmp/embedded.wit || { echo "MISSING from component: $op"; exit 1; }
-          done
-          grep -q "identity-error" /tmp/embedded.wit || { echo "identity-error absent"; exit 1; }
+          python3 /home/runner/work/aethel-core/aethel-core/scripts/check-component-exports.py \
+            core/wit/aethel-core.wit /tmp/build1.component.wasm
 
       - name: Two builds of the pinned revision must be byte-identical
         working-directory: /home/runner/work/aethel-core/aethel-core

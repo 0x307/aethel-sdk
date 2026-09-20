@@ -6,7 +6,8 @@
 #   scripts/sync-core.sh <rev>      # move the pin to <rev>, then rebuild
 #
 # This is the one command. It re-pulls the WIT world, rebuilds the component,
-# rewrites the declared hash, and leaves core/ consistent with the pin. The
+# rewrites the declared hash, moves the aethel-core dev-dependency to the
+# revision actually built, and leaves core/ consistent with the pin. The
 # bindings in src/component.rs are generated from core/wit at compile time, so
 # `cargo test` after this picks up a reshaped world with no hand edits.
 #
@@ -21,6 +22,7 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 pin="$repo_root/core/pin.toml"
+manifest="$repo_root/Cargo.toml"
 
 value_of() { grep -E "^$1 *=" "$pin" | head -1 | sed -E 's/.*= *"(.*)".*/\1/'; }
 
@@ -47,7 +49,7 @@ cat > "$out/build.sh" <<'INNER'
 set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
-apt-get install -y -qq curl ca-certificates git xz-utils gcc >/dev/null
+apt-get install -y -qq curl ca-certificates git xz-utils gcc python3 >/dev/null
 
 # Mirror the CI runner's paths. rustc embeds them, so they are part of the
 # artifact's identity.
@@ -57,6 +59,14 @@ cd /home/runner/work/aethel-core
 git clone -q "$CORE_REPO" aethel-core
 cd aethel-core
 git checkout -q "$CORE_REV"
+
+# Fail before the slow build if the pinned revision predates the checker.
+checker=scripts/check-component-exports.py
+if [ ! -f "$checker" ]; then
+  echo "Pinned aethel-core revision $CORE_REV lacks $checker." >&2
+  echo "Update core/pin.toml to a revision that provides the canonical checker." >&2
+  exit 1
+fi
 
 curl -sSf https://sh.rustup.rs -o /tmp/rustup.sh
 sh /tmp/rustup.sh -y --default-toolchain "$RUST_VERSION" \
@@ -82,17 +92,9 @@ build_once() {
 build_once /tmp/build1.wasm
 wasm-tools validate /tmp/build1.wasm
 
-# Every operation the world declares must survive into the artifact. A component
-# that validates but is missing an export is a component that does not implement
-# the world it claims.
-wasm-tools component wit /tmp/build1.wasm > /tmp/embedded.wit
-# (saap-prove / saap-verify on the old `attestation` interface were removed in
-# aethel-core 0.1.5: superseded by saap-verify-presentation.)
-for op in plp-project-at-context plp-prove-identity plp-verify \
-          saap-verify-presentation verify-signature \
-          htss-split htss-reconstruct; do
-  grep -q "$op" /tmp/embedded.wit || { echo "MISSING from component: $op"; exit 1; }
-done
+# Consume the checker from the exact revision being synced. It compares the
+# export set for exact equality and every interface's types and signatures.
+python3 "$checker" wit/aethel-core.wit /tmp/build1.wasm
 
 # Same claim the CI job makes, made here so a local re-vendor cannot silently
 # produce a one-off artifact.
@@ -105,7 +107,6 @@ cmp -s /tmp/build1.wasm /tmp/build2.wasm || {
 
 cp /tmp/build1.wasm /out/aethel_core.component.wasm
 cp wit/aethel-core.wit /out/aethel-core.wit
-cp /tmp/embedded.wit /out/embedded.wit
 git rev-parse HEAD > /out/rev
 ( cd /tmp && sha256sum build1.wasm | sed 's#build1.wasm#aethel_core.component.wasm#' ) > /out/component.sha256
 echo "built $(cat /out/component.sha256)"
@@ -139,8 +140,39 @@ cp "$out/component.sha256" "$repo_root/core/component.sha256"
 # Keep the pin honest: record what was actually built, not what was asked for.
 sed -i -E "s#^rev = \".*\"#rev = \"$resolved\"#" "$pin"
 
+# Move the dev-dependency with it.
+#
+# This script used to rewrite core/pin.toml and leave Cargo.toml alone, so every
+# re-vendor created exactly the drift that
+# `the_dev_dependency_matches_the_vendored_revision` exists to catch. The test
+# caught it and the script kept causing it, and the two revisions were then
+# reconciled by hand twice. A guard that fires on every run is describing a bug
+# in the thing that runs before it, so the fix belongs here, where the drift is
+# created, rather than in the test that reports it.
+#
+# It matters because tests/component_execution.rs compares the embedded
+# component against aethel-core's native API "at the same pinned revision". That
+# claim holds only while these two revisions agree; when they drifted at the
+# 0.4.0 migration the execution proof compared a 0.4.0 component against 0.3.2's
+# API and passed anyway.
+sed -i -E "/^aethel-core = \{/ s#rev = \"[0-9a-f]{40}\"#rev = \"$resolved\"#" "$manifest"
+
+# That substitution is a regex against a hand-maintained line. If the line is
+# ever reshaped it matches nothing and does nothing, which is the same silent
+# no-op this change exists to remove — so require it to have landed.
+if ! grep -qE "^aethel-core = \{.*rev = \"$resolved\"" "$manifest"; then
+  echo "could not update the aethel-core dev-dependency in Cargo.toml." >&2
+  echo "Set its rev to $resolved by hand, then fix the substitution in this script." >&2
+  exit 1
+fi
+
 echo
 echo "core/ is now at $resolved"
 echo "  $(cat "$repo_root/core/component.sha256")"
 echo
-echo "next: cargo test"
+# --all-features, not a bare `cargo test`. The credential surface —
+# `credential.issue`, `credential.present`, `issuer-public-parameters.*` — is
+# behind `experimental-credentials`, so a default run skips it entirely. Those
+# resource methods are the class the export check was rewritten to cover, and
+# recommending the run that cannot see them would undercut the check above.
+echo "next: cargo test --all-features"
