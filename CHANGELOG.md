@@ -9,8 +9,12 @@ document for what counts as breaking inside `0.x`.
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-09-20
+
 Aethel ships identity-only. Credentials are a separate line of work, and they come back on by
 default once they are sound.
+
+Vendors `aethel-core` 0.7.0 (`b98fe07`).
 
 ### Changed (BREAKING)
 
@@ -28,10 +32,16 @@ default once they are sound.
 
 ### Changed
 
-- **The embedded component is now `aethel-core` 0.6.1 (`1a61a14`).** No change to the public
-  API, the WIT world or behaviour — the only source change between 0.6.0 and 0.6.1 is a doc
-  comment. `core/wit/aethel-core.wit` is byte-identical, and the native dev-dependency the
+- **The embedded component is now `aethel-core` 0.7.0 (`b98fe07`).** The previous release vendored
+  0.6.0. This passes through 0.6.1, whose only source change was a doc comment, to 0.7.0, which
+  adds two constants and changes neither the WIT world nor the component's behaviour.
+  `core/wit/aethel-core.wit` is byte-identical across all three, and the native dev-dependency the
   execution proof compares against moved to the same revision.
+
+  **The component's bytes did change**, to `6f87f48a…`. Nothing in its source moved: the crate
+  version feeds rustc's symbol-mangling metadata, so a version bump alone produces a different
+  artifact. The dev-dependency's version requirement moved from `"0.6"` to `"0.7"` with it —
+  `scripts/sync-core.sh` moves the `rev` but not the requirement, which is what C1-03 covers.
 - **The component export check is computed from the WIT instead of a hardcoded list.** CI and
   `scripts/sync-core.sh` now run `check-component-exports.py` from the pinned `aethel-core`
   revision, which derives the expected surface from `core/wit/aethel-core.wit` and compares it
@@ -50,6 +60,27 @@ default once they are sound.
 
 - A `compile_fail` doctest that proves `aethel_sdk::Credential` is unreachable without the
   feature, and CI steps that build and test with the feature, so gated code cannot rot unseen.
+- **A CI job that resolves the `aethel-core` version requirement against crates.io.**
+  `cargo publish` drops the git source and resolves that requirement against the registry, and
+  nothing local sees it: the git source satisfies the requirement whatever crates.io holds, so a
+  requirement that cannot resolve stays green until publish day. That is how 0.5.2's publish
+  failed — the requirement said `"0.3"` while every 0.3.x had been yanked upstream.
+
+  The job distinguishes *no matching release* from *every matching release is yanked*. Publish
+  reports the first for the second, and that conflation is what made the 0.5.2 incident hard to
+  read. Both outcomes get a negative control that asserts the reason rather than just the
+  failure, and both controls use real registry state — every `aethel-core` 0.3.x really is
+  yanked — so they cannot drift from what they model.
+- **`tests/core_provenance.rs`, which requires the linked `aethel-core` and the vendored component
+  to describe one build.** `aethel-core` 0.7.0 exposes `COMPONENT_SHA256`; this crate records the
+  same digest in `core/component.sha256`. Nothing compared them, and
+  `the_dev_dependency_matches_the_vendored_revision` cannot — it compares two strings in two local
+  files, which is a question about labels rather than bytes. The test closes the triangle: the
+  linked crate, the local record and the embedded bytes must all agree.
+
+  This is C1-03's AC4 in the form that can hold. Comparing revisions cannot work, because
+  `core/pin.toml` names merge commits, which did not exist when the crate recorded its own
+  provenance.
 - **`tests/build_inputs.rs`, which fails if `build.rs` stops declaring a component input.**
   `build.rs` is the entire fix for the 0.4.0 stale-bindings incident and nothing tested it:
   deleting a `rerun-if-changed` line left every other test in the crate green.

@@ -24,7 +24,7 @@ feature, and should not be relied on yet. See [Experimental: credentials](#exper
 
 ```toml
 [dependencies]
-aethel-sdk = "0.7"
+aethel-sdk = "0.8"
 ```
 
 **Before you add it:** this crate embeds a WebAssembly runtime, so `cargo add aethel-sdk` pulls
@@ -85,7 +85,7 @@ See [ROADMAP.md](./ROADMAP.md) for the milestone sequence this is built in.
 
 ```toml
 [dependencies]
-aethel-sdk = "0.7"
+aethel-sdk = "0.8"
 ```
 
 ```rust
