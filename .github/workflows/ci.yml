@@ -99,3 +99,41 @@ jobs:
         with:
           targets: wasm32-unknown-unknown
       - run: cargo check --target wasm32-unknown-unknown
+
+  crates-io-requirement:
+    name: the dev-dependency must resolve on crates.io
+    runs-on: ubuntu-latest
+    # `cargo publish` drops the git source and resolves the aethel-core version
+    # requirement against crates.io. Nothing local sees that: the git source
+    # satisfies the requirement whatever the registry holds, so a requirement
+    # that cannot resolve stays green here until publish day. That is how
+    # 0.5.2's publish failed -- the requirement said "0.3" while every 0.3.x had
+    # been yanked upstream, and no local check could tell.
+    #
+    # `the_dev_dependency_matches_the_vendored_revision` does not cover this. It
+    # compares two strings in two files in this repository; the failure lives on
+    # crates.io.
+    #
+    # This runs on every pull request rather than at publish, so a bad
+    # requirement surfaces on the change that introduces it.
+    steps:
+      - uses: actions/checkout@v4
+
+      # The controls run first, for the reason check-comparisons.sh states
+      # above: a check that has never been shown to fail is not known to work.
+      # Both use real registry state rather than a fixture -- every aethel-core
+      # 0.3.x really is yanked -- so they cost nothing to maintain and cannot
+      # drift from what they model.
+      #
+      # They assert the reason and not merely the failure. Publish reported
+      # "no such version" for what was really "every matching version is
+      # yanked", and that conflation is what made the 0.5.2 incident hard to
+      # read, so the two outcomes are required to stay distinguishable.
+      - name: Control - every matching release yanked must be caught, and named as that
+        run: python3 scripts/check-crates-io-requirement.py --requirement 0.3 --expect all-yanked
+
+      - name: Control - no matching release must be caught, and told apart from yanked
+        run: python3 scripts/check-crates-io-requirement.py --requirement 9999.0 --expect no-match
+
+      - name: The requirement in Cargo.toml must resolve to a non-yanked release
+        run: python3 scripts/check-crates-io-requirement.py
