@@ -52,10 +52,28 @@ jobs:
           cd /home/runner/work/aethel-core/aethel-core
           git checkout --quiet ${{ steps.pin.outputs.rev }}
           echo "aethel-core at $(git rev-parse HEAD)"
-          if [ ! -f scripts/check-component-exports.py ]; then
-            echo "The pinned aethel-core revision lacks scripts/check-component-exports.py."
-            exit 1
-          fi
+          for f in scripts/check-component-exports.py \
+                   scripts/test_check_component_exports.py; do
+            if [ ! -f "$f" ]; then
+              echo "The pinned aethel-core revision lacks $f."
+              exit 1
+            fi
+          done
+
+      # This repo does not define the export check, it consumes one from the
+      # pinned revision. That makes the checker's own test part of what is being
+      # pinned, and running it here is what stops this job from trusting a
+      # checker it has never seen fail.
+      #
+      # aethel-core pairs the checker with a negative control that strips
+      # `credential.present` — a resource method, the class its old hardcoded
+      # loop never covered — and requires the checker to reject it. That control
+      # guards aethel-core's CI. This step is the consumer-side half: it guards
+      # against a future pin to a revision whose checker cannot fail, which
+      # would silently turn every export check below into a green no-op.
+      - name: The checker must be able to fail
+        working-directory: /home/runner/work/aethel-core/aethel-core
+        run: python3 scripts/test_check_component_exports.py
 
       - name: The vendored WIT must be the pinned revision's WIT
         run: |
