@@ -86,6 +86,21 @@ jobs:
       - run: scripts/check-comparisons.sh --self-test
       - run: scripts/check-comparisons.sh
 
+  package-contents:
+    name: published crate contents
+    runs-on: ubuntu-latest
+    # This packages and inspects the generated .crate, rather than checking the
+    # working tree. The control proves an omitted examples/ include is caught:
+    # that was a historical release defect, where README users could not run
+    # the documented cargo example from crates.io.
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Control - omitted examples must fail package validation
+        run: python3 scripts/validate-package.py --negative-control
+      - name: Validate the actual published crate archive
+        run: python3 scripts/validate-package.py
+
   wasm32:
     name: wasm32 still builds
     runs-on: ubuntu-latest
