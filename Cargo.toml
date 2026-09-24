@@ -1,13 +1,13 @@
 [package]
 name = "aethel-sdk"
-version = "0.8.0"
+version = "0.8.1"
 edition = "2021"
 description = "Ergonomic Rust SDK over aethel-core's post-quantum identity primitives: generate, sign, verify, project, recover"
 authors = ["Ed Johnson"]
 license = "Apache-2.0"
 repository = "https://github.com/0x307/aethel-sdk"
 documentation = "https://docs.rs/aethel-sdk"
-homepage = "https://github.com/0x307/aethel-sdk"
+homepage = "https://0x307.com/crates"
 keywords = ["post-quantum", "identity", "sdk", "cryptography"]
 categories = ["cryptography"]
 readme = "README.md"
