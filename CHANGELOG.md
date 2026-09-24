@@ -17,6 +17,8 @@ Documentation and metadata only. No change to the API, the wire formats or behav
   of them. The same section is in the crate docs, so it renders on docs.rs.
 - `Cargo.toml` sets `documentation` (docs.rs) and `homepage` (0x307.com/crates).
 - `STABILITY.md` states when a version is yanked.
+- `Cargo.lock` moves from pqc-sig 0.4.0, now yanked, to 0.4.1. This lockfile only governs this
+  repository's own builds; a crate that depends on this one resolves pqc-sig itself.
 
 ## [Unreleased]
 
