@@ -105,7 +105,10 @@
 //!   survives the process
 //! - [`Identity::split_for_recovery`] and [`Identity::recover_from_shares`],
 //!   authenticated 3-of-5 recovery over the canonical sealed identity
-//! - [`Identity::public_key_multibase`], the public key as a W3C Multikey
+//! - [`Identity::public_key_multibase`] and [`public_key_from_multibase`], W3C
+//!   Multikey transport and decoding for ML-DSA-65 verification material
+//! - [`Identity::sign_typed`] and [`verify_typed`], typed signatures and
+//!   verification using `pqc-sig` transport representations
 //! - [`Identity::project_at`], fresh, context-bound PLP projections
 //!
 //! With the `experimental-credentials` feature, `Identity::issue_credential`,
@@ -186,7 +189,16 @@ pub use disclosure::{
 };
 
 #[cfg(not(target_arch = "wasm32"))]
-pub use identity::{verify, Identity, Projection, RecoveryShare, RecoveryShareSet};
+pub use identity::{
+    public_key_from_multibase, verify, verify_typed, Identity, Projection, RecoveryShare,
+    RecoveryShareSet,
+};
+
+/// Canonical algorithm-labelled signature transport types supplied by
+/// `pqc-sig`. They are representations and encoders only; this SDK continues
+/// to perform signing and verification through its embedded aethel-core
+/// component.
+pub use pqc_sig::{SigAlgorithm, SigPublicKey, Signature};
 
 #[cfg(not(target_arch = "wasm32"))]
 pub use verifier::Verifier;

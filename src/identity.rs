@@ -25,6 +25,7 @@
 //! keeps the model obvious: dropping an identity drops the instance holding its
 //! secret, and two identities cannot observe each other.
 
+use pqc_sig::{SigAlgorithm, SigPublicKey, Signature};
 use subtle::ConstantTimeEq;
 use zeroize::Zeroize;
 
@@ -58,30 +59,10 @@ pub const PROJECTION_COEFFICIENTS: usize = 1024;
 
 /// The multicodec code for an ML-DSA-65 public key, registered upstream.
 ///
-/// Named rather than inlined because the byte sequence it encodes is what a
-/// decoder keys on: get it wrong and the output is still a well-formed
-/// base58btc string, just one that describes a different algorithm.
+/// Retained for source compatibility. New code should use
+/// [`SigAlgorithm::multicodec_code`], which is the canonical mapping owned by
+/// `pqc-sig`.
 pub const ML_DSA_65_MULTICODEC: u32 = 0x1211;
-
-/// Encode `public_key` as a W3C Multikey. See
-/// [`Identity::public_key_multibase`].
-fn multikey(public_key: &[u8]) -> String {
-    let mut prefixed = unsigned_varint(ML_DSA_65_MULTICODEC);
-    prefixed.extend_from_slice(public_key);
-    format!("z{}", bs58::encode(&prefixed).into_string())
-}
-
-/// Unsigned LEB128, the multiformats varint. Seven bits of payload per byte,
-/// low group first, high bit set on every byte but the last.
-fn unsigned_varint(mut value: u32) -> Vec<u8> {
-    let mut out = Vec::new();
-    while value >= 0x80 {
-        out.push((value as u8) | 0x80);
-        value >>= 7;
-    }
-    out.push(value as u8);
-    out
-}
 
 /// A public, context-bound PLP projection.
 ///
@@ -195,6 +176,13 @@ pub enum Error {
     /// parameter set this crate vendors, so the projection is refused rather
     /// than encoded.
     UnexpectedProjectionRank(usize),
+    /// A pqc-sig transport encoding was malformed.
+    PqcSig(pqc_sig::SigError),
+    /// Typed public verification material was not ML-DSA-65 or had the wrong
+    /// raw public-key length.
+    InvalidTypedPublicKey(&'static str),
+    /// Typed signature material was not ML-DSA-65 or had the wrong length.
+    InvalidTypedSignature(&'static str),
 }
 
 impl core::fmt::Display for Error {
@@ -219,6 +207,13 @@ impl core::fmt::Display for Error {
                 f,
                 "the component returned a projection with {n} coefficients, expected {PROJECTION_COEFFICIENTS}: this is not the parameter set this crate vendors"
             ),
+            Error::PqcSig(e) => write!(f, "invalid pqc-sig encoding: {e}"),
+            Error::InvalidTypedPublicKey(reason) => {
+                write!(f, "invalid ML-DSA-65 public key: {reason}")
+            }
+            Error::InvalidTypedSignature(reason) => {
+                write!(f, "invalid ML-DSA-65 signature: {reason}")
+            }
         }
     }
 }
@@ -241,6 +236,32 @@ impl From<wasmtime::Error> for Error {
     fn from(e: wasmtime::Error) -> Self {
         Error::Host(e)
     }
+}
+
+impl From<pqc_sig::SigError> for Error {
+    fn from(e: pqc_sig::SigError) -> Self {
+        Error::PqcSig(e)
+    }
+}
+
+fn validate_ml_dsa_65_public_key(public_key: &SigPublicKey) -> Result<(), Error> {
+    if public_key.algorithm != SigAlgorithm::MlDsa65 {
+        return Err(Error::InvalidTypedPublicKey("algorithm must be ML-DSA-65"));
+    }
+    if public_key.as_bytes().len() != SigAlgorithm::MlDsa65.public_key_size() {
+        return Err(Error::InvalidTypedPublicKey("wrong public-key length"));
+    }
+    Ok(())
+}
+
+fn validate_ml_dsa_65_signature(signature: &Signature) -> Result<(), Error> {
+    if signature.algorithm != SigAlgorithm::MlDsa65 {
+        return Err(Error::InvalidTypedSignature("algorithm must be ML-DSA-65"));
+    }
+    if signature.as_bytes().len() != SigAlgorithm::MlDsa65.signature_size() {
+        return Err(Error::InvalidTypedSignature("wrong signature length"));
+    }
+    Ok(())
 }
 
 /// A post-quantum identity.
@@ -537,7 +558,9 @@ impl Identity {
     /// [mk]: https://www.w3.org/TR/controller-document/#multikey
     /// [mc]: https://github.com/multiformats/multicodec
     pub fn public_key_multibase(&self) -> String {
-        multikey(&self.public_key)
+        SigPublicKey::new(SigAlgorithm::MlDsa65, self.public_key.clone())
+            .to_multibase()
+            .expect("ML-DSA-65 has a canonical Multikey encoding")
     }
 
     /// Sign a message.
@@ -550,6 +573,18 @@ impl Identity {
             .aethel_core_identity()
             .master_identity()
             .call_sign(&mut self.store, self.handle, message)??;
+        Ok(signature)
+    }
+
+    /// Sign a message and return an algorithm-labelled signature suitable for
+    /// transport via [`Signature::to_json`].
+    ///
+    /// The actual signing remains inside the embedded aethel-core component.
+    /// Use [`verify_typed`] at the receiving end; the existing [`Self::sign`]
+    /// byte-oriented API remains available for compatibility.
+    pub fn sign_typed(&mut self, message: &[u8]) -> Result<Signature, Error> {
+        let signature = Signature::new(SigAlgorithm::MlDsa65, self.sign(message)?);
+        validate_ml_dsa_65_signature(&signature)?;
         Ok(signature)
     }
 
@@ -798,4 +833,30 @@ pub fn verify(public_key: &[u8], message: &[u8], signature: &[u8]) -> Result<boo
         .aethel_core_identity()
         .call_verify_signature(&mut store, public_key, message, signature)??;
     Ok(verified)
+}
+
+/// Decode ML-DSA-65 public verification material from a W3C Multikey.
+///
+/// The Multikey's base58btc encoding and embedded multicodec are decoded by
+/// `pqc-sig`. This SDK then requires ML-DSA-65 and its exact public-key
+/// length, so callers cannot pass another algorithm's key to [`verify_typed`].
+pub fn public_key_from_multibase(multibase: &str) -> Result<SigPublicKey, Error> {
+    let public_key = SigPublicKey::from_multibase(SigAlgorithm::MlDsa65, multibase)?;
+    validate_ml_dsa_65_public_key(&public_key)?;
+    Ok(public_key)
+}
+
+/// Verify a typed ML-DSA-65 signature using typed public verification material.
+///
+/// Algorithm labels and lengths are checked before Aethel's embedded component
+/// performs the cryptographic verification. A validly formed signature for a
+/// different message or key returns `Ok(false)`, as [`verify`] does.
+pub fn verify_typed(
+    public_key: &SigPublicKey,
+    message: &[u8],
+    signature: &Signature,
+) -> Result<bool, Error> {
+    validate_ml_dsa_65_public_key(public_key)?;
+    validate_ml_dsa_65_signature(signature)?;
+    verify(public_key.as_bytes(), message, signature.as_bytes())
 }

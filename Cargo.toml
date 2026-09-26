@@ -30,6 +30,7 @@ include = [
     "examples/**/*",
     "core/**/*",
     "scripts/sync-core.sh",
+    "scripts/check-pqc-sig-features.sh",
     # The comparison check and its allowlist ship too. SECURITY-MODEL.md points
     # at them as the enforcement behind the timing claim, and a claim you cannot
     # inspect from the package you installed is worth less.
@@ -69,12 +70,10 @@ required-features = ["experimental-credentials"]
 # component.
 sha2 = "0.10"
 
-# base58btc, the alphabet W3C Multikey requires. An encoding, not a
-# cryptographic operation: no key is derived, checked, or protected by it, and
-# the bytes it encodes come out of the component already public. The multicodec
-# varint prefix is eight lines below and stays here rather than pulling a
-# signature library in for it.
-bs58 = "0.5"
+# Algorithm-labelled public keys and signatures, including the canonical W3C
+# Multikey and transport encodings. Keep cryptographic implementation features
+# off: aethel-core's embedded component remains this SDK's only crypto engine.
+pqc-sig = { version = "0.5", default-features = false, features = ["std"] }
 
 # Wiping this crate's copy of the entropy passed into key generation. The secret
 # itself is never here, but the input that determines it briefly is.
@@ -111,10 +110,5 @@ wasmtime = { version = "48.0.1", default-features = false, features = ["runtime"
 aethel-core = { version = "0.7", git = "https://github.com/0x307/aethel-core", rev = "b98fe074975fdba822c3827c46a92090e59ea914" }
 
 [dev-dependencies]
-# Independent verifiers for the Multikey encoding, used only by
-# tests/multikey.rs. `multibase` is a third-party implementation of the
-# multiformats spec, and `pqc-sig` is a separate codebase from this one. If our
-# eight lines of varint and our choice of base are wrong, a decoder that shares
-# no code with them says so.
+# Independent Multibase decoder used by tests/multikey.rs.
 multibase = "0.9"
-pqc-sig = "0.4"
