@@ -22,6 +22,12 @@ Documentation and metadata only. No change to the API, the wire formats or behav
 
 ## [Unreleased]
 
+- Added the manually triggered post-publish smoke workflow. Its external
+  consumer helper was exercised locally against the already published `0.8.1`
+  release; that rehearsal does not verify any future unpublished release.
+- Release policy requires every post-publish-smoke-driven yank and its reason
+  to be recorded in this changelog before the corrected release is published.
+
 ## [0.8.0] - 2026-09-20
 
 Aethel ships identity-only. Credentials are a separate line of work, and they come back on by
