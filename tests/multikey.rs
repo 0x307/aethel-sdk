@@ -46,6 +46,12 @@ fn the_multikey_decodes_under_a_third_party_multiformats_implementation() {
 #[test]
 fn the_multikey_remains_byte_identical_to_the_historical_sdk_fixture() {
     let identity = Identity::from_entropy(ENTROPY).expect("identity");
+    // Provenance: published crates.io `aethel-sdk` 0.5.2 (tag `v0.5.2`,
+    // `31f01d425c3b9f0db0e0c95bb635ccfc5a3a93e7`), before delegation to
+    // `pqc-sig`. In that package, run `cargo +1.97.0 run --locked --bin
+    // historical-multikey` for a transient bin that prints
+    // `Identity::from_entropy(b"deterministic entropy for tests!").unwrap()
+    // .public_key_multibase()`; its original SDK-local encoder produced this.
     assert_eq!(
         identity.public_key_multibase(),
         HISTORICAL_ML_DSA_65_MULTIKEY.trim_end()
