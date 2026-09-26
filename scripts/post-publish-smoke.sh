@@ -195,7 +195,7 @@ run_smoke() {
     return 1
   fi
   assert_component_hash "$actual" "$expected"
-  echo "PASS: tagged component hash matches published crate"
+  echo "PASS: expected component hash matches published crate"
 
   corrupted=$(corrupt_digest "$expected")
   local control_output
