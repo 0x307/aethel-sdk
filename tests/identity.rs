@@ -7,7 +7,10 @@
 
 #![cfg(not(target_arch = "wasm32"))]
 
-use aethel_sdk::{identity::Error, verify, Identity, RecoveryShareSet};
+use aethel_sdk::{
+    identity::Error, public_key_from_multibase, verify, verify_typed, Identity, RecoveryShareSet,
+    SigAlgorithm, SigPublicKey, Signature,
+};
 
 const ENTROPY: &[u8; 32] = b"deterministic entropy for tests!";
 const OTHER_ENTROPY: &[u8; 32] = b"a completely different entropy!!";
@@ -134,6 +137,73 @@ fn signing_is_deterministic() {
     let mut id = Identity::from_entropy(ENTROPY).expect("generate");
     let message = b"same message, twice";
     assert_eq!(id.sign(message).unwrap(), id.sign(message).unwrap());
+}
+
+#[test]
+fn typed_signature_transports_through_base64url_and_json() {
+    let mut identity = Identity::from_entropy(ENTROPY).expect("identity");
+    let message = b"typed signature transport";
+    let signature = identity.sign_typed(message).expect("sign");
+
+    assert_eq!(signature.algorithm, SigAlgorithm::MlDsa65);
+    let base64url = signature.to_base64url();
+    let decoded_base64url =
+        Signature::from_base64url(SigAlgorithm::MlDsa65, &base64url).expect("base64url decode");
+    assert_eq!(decoded_base64url, signature);
+
+    let json = signature.to_json().expect("JSON encode");
+    let decoded_json = Signature::from_json(&json).expect("JSON decode");
+    assert_eq!(decoded_json, signature);
+
+    // This is the receiver's public-only process boundary: it has neither the
+    // signer Identity nor its sealing key.
+    let received_key =
+        public_key_from_multibase(&identity.public_key_multibase()).expect("Multikey decode");
+    assert!(verify_typed(&received_key, message, &decoded_json).expect("verify"));
+}
+
+#[test]
+fn typed_verification_rejects_mismatched_algorithm_and_length() {
+    let mut identity = Identity::from_entropy(ENTROPY).expect("identity");
+    let message = b"typed validation";
+    let valid = identity.sign_typed(message).expect("sign");
+    let public_key =
+        public_key_from_multibase(&identity.public_key_multibase()).expect("Multikey decode");
+
+    let wrong_algorithm = Signature::new(SigAlgorithm::MlDsa44, valid.bytes.clone());
+    assert!(verify_typed(&public_key, message, &wrong_algorithm).is_err());
+
+    let short_signature = Signature::new(SigAlgorithm::MlDsa65, vec![0; 3]);
+    assert!(verify_typed(&public_key, message, &short_signature).is_err());
+
+    let wrong_key = SigPublicKey::new(SigAlgorithm::MlDsa44, public_key.bytes.clone());
+    assert!(verify_typed(&wrong_key, message, &valid).is_err());
+}
+
+#[test]
+fn typed_verification_rejects_tampering_wrong_messages_and_wrong_keys() {
+    let mut identity = Identity::from_entropy(ENTROPY).expect("identity");
+    let other = Identity::from_entropy(OTHER_ENTROPY).expect("other identity");
+    let message = b"typed integrity";
+    let signature = identity.sign_typed(message).expect("sign");
+    let public_key =
+        public_key_from_multibase(&identity.public_key_multibase()).expect("Multikey decode");
+    let other_key =
+        public_key_from_multibase(&other.public_key_multibase()).expect("other Multikey decode");
+
+    assert!(!verify_typed(&public_key, b"modified", &signature).expect("verify"));
+    assert!(!verify_typed(&other_key, message, &signature).expect("verify"));
+
+    let mut tampered = signature;
+    tampered.bytes[0] ^= 1;
+    assert!(!verify_typed(&public_key, message, &tampered).expect("verify"));
+}
+
+#[test]
+fn malformed_typed_signature_transport_is_rejected() {
+    assert!(Signature::from_base64url(SigAlgorithm::MlDsa65, "%%%").is_err());
+    assert!(Signature::from_json(r#"{"algorithm":"ml_dsa_65","bytes":"%%%"}"#).is_err());
+    assert!(Signature::from_json(r#"{"algorithm":"not-an-algorithm","bytes":"AA"}"#).is_err());
 }
 
 /// Formatting an identity must not print key material.

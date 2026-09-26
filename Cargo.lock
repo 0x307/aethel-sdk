@@ -28,7 +28,7 @@ source = "git+https://github.com/0x307/aethel-core?rev=b98fe074975fdba822c3827c4
 dependencies = [
  "cc",
  "chacha20poly1305",
- "pqc-sig",
+ "pqc-sig 0.4.1",
  "rand_core 0.6.4",
  "serde",
  "sha3 0.10.9",
@@ -40,10 +40,9 @@ name = "aethel-sdk"
 version = "0.8.1"
 dependencies = [
  "aethel-core",
- "bs58",
  "getrandom",
  "multibase",
- "pqc-sig",
+ "pqc-sig 0.5.0",
  "sha2 0.10.9",
  "subtle",
  "wasmtime",
@@ -951,6 +950,22 @@ dependencies = [
  "serde_json",
  "slh-dsa",
  "spki",
+ "subtle",
+ "thiserror",
+ "zeroize",
+]
+
+[[package]]
+name = "pqc-sig"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e2e9ac94c70f9020a13eeacf14e2a755706ea09b7ef75857e6a49fca774d3731"
+dependencies = [
+ "base64ct",
+ "bs58",
+ "rand_core 0.6.4",
+ "serde",
+ "serde_json",
  "subtle",
  "thiserror",
  "zeroize",

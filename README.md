@@ -60,9 +60,9 @@ four minutes is not stuck. Host platforms only: wasmtime needs mmap and cannot c
   `Identity::recover_from_shares(shares, expected_root, sealing_key)` restores it.
 - **Offline generation.** Creating an identity reaches nothing. Proven in CI rather than
   asserted; see [Generation is offline](#generation-is-offline-and-that-is-proven).
-- **Interoperable public keys.** `Identity::public_key_multibase()` emits a W3C Multikey, so a
-  verifier that has never seen this SDK can decode the key and know which algorithm produced
-  it.
+- **Interoperable public keys and signatures.** `Identity::public_key_multibase()` emits a W3C
+  Multikey, `public_key_from_multibase()` decodes it, and `Identity::sign_typed()` returns a
+  `pqc-sig` algorithm-labelled `Signature` that transports through JSON or base64url.
 - Nothing cryptographic is implemented in this crate, and nothing ever will be. Every
   cryptographic operation lives inside the component. That is the charter's L1 boundary: one
   artifact, embedded by every language, and adding a language never adds crypto.
@@ -91,23 +91,33 @@ aethel-sdk = "0.8"
 ```
 
 ```rust
-use aethel_sdk::{verify, Identity};
+use aethel_sdk::{public_key_from_multibase, verify, verify_typed, Identity, Signature};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Entropy comes from the OS. The signing key is derived from it inside the
     // embedded component and never enters this process.
     let mut identity = Identity::generate()?;
 
-    // Sign and verify.
+    // PROCESS A — signer: create public verification material and a typed,
+    // algorithm-labelled signature that can be transported independently.
     let message = b"the message that was actually signed";
+    let multikey = identity.public_key_multibase();
+    let signature_json = identity.sign_typed(message)?.to_json()?;
+
+    // PROCESS B — verifier: these are values received from the signer. This
+    // process has no private identity or sealing key.
+    let received_key = public_key_from_multibase(&multikey)?;
+    let received_signature = Signature::from_json(&signature_json)?;
+    assert!(verify_typed(&received_key, message, &received_signature)?);
+    assert!(!verify_typed(
+        &received_key,
+        b"something else",
+        &received_signature
+    )?);
+
+    // Existing byte-oriented calls continue to work unchanged.
     let signature = identity.sign(message)?;
     assert!(verify(identity.public_key(), message, &signature)?);
-    assert!(!verify(identity.public_key(), b"something else", &signature)?);
-
-    // The interoperable form of the public key: base58btc over the multicodec
-    // code for ML-DSA-65. This is what goes in a DID document.
-    let multikey = identity.public_key_multibase();
-    assert!(multikey.starts_with('z'));
 
     // Persist it. `key` must be high-entropy key material, NOT a password.
     let key = b"a sealing key of thirty-two byte";
@@ -127,7 +137,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 ```
 
 No network access is involved, and nothing is fetched at install time: the component is
-compiled into the crate.
+compiled into the crate. JSON preserves the signature's algorithm label; base64url is the raw
+signature-byte encoding and must be accompanied by its algorithm when decoded with
+`Signature::from_base64url`. A valid signature only proves control of the corresponding private
+key over this message. Your application must independently establish whether that public identity
+is trusted or authorized for the action.
 
 ## Threshold recovery
 

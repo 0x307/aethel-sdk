@@ -14,6 +14,10 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo build --all-targets
       - run: cargo test
+      - name: Control - pqc-sig feature graph gate detects crypto implementations
+        run: scripts/check-pqc-sig-features.sh --self-test
+      - name: pqc-sig is encoding-only above the embedded core
+        run: scripts/check-pqc-sig-features.sh
       # The README quickstart is kept as an example and run here, so a broken
       # quickstart fails CI rather than a reader's first five minutes.
       - run: cargo run --example quickstart

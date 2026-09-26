@@ -22,6 +22,21 @@ Documentation and metadata only. No change to the API, the wire formats or behav
 
 ## [Unreleased]
 
+- Added transport-safe typed public verification material and signatures:
+  `public_key_from_multibase`, `Identity::sign_typed`, and `verify_typed`.
+  They use `pqc-sig`'s public `SigPublicKey`, `Signature`, and JSON/base64url
+  encodings, while Aethel's embedded core remains the only signing and
+  verification implementation.
+- `Identity::public_key_multibase()` now delegates to canonical `pqc-sig`
+  Multikey encoding. Its ML-DSA-65 output is unchanged; the SDK's duplicate
+  varint and Multikey encoder were removed.
+- `pqc-sig` 0.5 is now a runtime dependency with default features disabled and
+  only `std` enabled. CI checks Cargo's resolved feature/dependency graph and
+  proves its checker rejects a crypto implementation feature/dependency.
+- Existing byte-oriented `Identity::sign` and `verify` APIs remain supported.
+  New integrations should use the typed API and JSON when an algorithm-labelled
+  signature must cross a process boundary; base64url encodes signature bytes
+  and requires an accompanying algorithm at decode time.
 - Added the manually triggered post-publish smoke workflow. Its external
   consumer helper was exercised locally against the already published `0.8.1`
   release; that rehearsal does not verify any future unpublished release.
