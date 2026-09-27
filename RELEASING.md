@@ -46,6 +46,10 @@ scripts/post-publish-smoke.sh 0.8.0 \
   6f87f48a00d65c1a130d0b739046ea2413cead4caf758c5cd5b1113017acd348
 ```
 
+Local rehearsal requires Linux, macOS, or WSL. Native Windows is unsupported
+because the generated external consumer reads `/dev/urandom`. The GitHub
+Actions workflow runs on Ubuntu.
+
 This is useful for reproducing the external-consumer procedure, but it does
 not prove an unpublished future version. The manually triggered workflow is
 the authoritative release verification.

@@ -47,6 +47,16 @@ assert_component_hash() {
   fi
 }
 
+assert_consumer_component_hash() {
+  local output=$1 expected=$2 actual
+  actual=$(printf '%s\n' "$output" | awk -F= '/^DECLARED_COMPONENT_SHA256=[0-9a-f]{64}$/ { count++; value=$2 } END { if (count == 1) print value; else exit 1 }')
+  if ! is_sha256 "${actual:-}"; then
+    echo "consumer did not emit exactly one valid DECLARED_COMPONENT_SHA256 marker" >&2
+    return 1
+  fi
+  assert_component_hash "$actual" "$expected"
+}
+
 assert_consumer_lockfile() {
   local manifest=$1 lockfile=$2 version=$3
   python3 - "$manifest" "$lockfile" "$version" <<'PY'
@@ -186,20 +196,15 @@ run_smoke() {
   assert_consumer_lockfile "$project_dir/Cargo.toml" "$project_dir/Cargo.lock" "$version"
   write_consumer "$project_dir"
 
-  local output actual corrupted
+  local output corrupted
   output=$(cd "$project_dir" && cargo run --quiet)
   printf '%s\n' "$output"
-  actual=$(printf '%s\n' "$output" | awk -F= '/^DECLARED_COMPONENT_SHA256=[0-9a-f]{64}$/ { count++; value=$2 } END { if (count == 1) print value; else exit 1 }')
-  if ! is_sha256 "${actual:-}"; then
-    echo "consumer did not emit exactly one valid DECLARED_COMPONENT_SHA256 marker" >&2
-    return 1
-  fi
-  assert_component_hash "$actual" "$expected"
+  assert_consumer_component_hash "$output" "$expected"
   echo "PASS: expected component hash matches published crate"
 
   corrupted=$(corrupt_digest "$expected")
   local control_output
-  if control_output=$(assert_component_hash "$actual" "$corrupted" 2>&1); then
+  if control_output=$(assert_consumer_component_hash "$output" "$corrupted" 2>&1); then
     echo "negative control failed: corrupted expected hash was accepted" >&2
     return 1
   fi
@@ -219,7 +224,9 @@ self_test() {
   [[ $(corrupt_digest "$digest") != "$digest" ]]
   assert_component_hash "$digest" "$digest"
   local negative_control
-  ! negative_control=$(assert_component_hash "$digest" "$(corrupt_digest "$digest")" 2>&1)
+  local consumer_output="DECLARED_COMPONENT_SHA256=$digest"
+  assert_consumer_component_hash "$consumer_output" "$digest"
+  ! negative_control=$(assert_consumer_component_hash "$consumer_output" "$(corrupt_digest "$digest")" 2>&1)
   [[ $negative_control == component\ digest\ mismatch:* ]]
 
   local fixture
