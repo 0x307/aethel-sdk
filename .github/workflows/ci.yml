@@ -22,6 +22,14 @@ jobs:
       - run: cargo build --all-targets --features experimental-credentials
       - run: cargo test --features experimental-credentials
 
+  post-publish-smoke-helper:
+    name: post-publish smoke helper
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate release smoke input and registry guards
+        run: scripts/post-publish-smoke.sh --self-test
+
   # P5-05: proves identity generation works fully offline by denying the
   # capability at the boundary — a real network namespace with no interface —
   # rather than by an in-process "am I offline?" assertion. An in-process check
