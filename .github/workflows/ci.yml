@@ -22,6 +22,14 @@ jobs:
       - run: cargo build --all-targets --features experimental-credentials
       - run: cargo test --features experimental-credentials
 
+  post-publish-smoke-helper:
+    name: post-publish smoke helper
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate release smoke input and registry guards
+        run: scripts/post-publish-smoke.sh --self-test
+
   # P5-05: proves identity generation works fully offline by denying the
   # capability at the boundary — a real network namespace with no interface —
   # rather than by an in-process "am I offline?" assertion. An in-process check
@@ -85,6 +93,21 @@ jobs:
       - uses: actions/checkout@v4
       - run: scripts/check-comparisons.sh --self-test
       - run: scripts/check-comparisons.sh
+
+  package-contents:
+    name: published crate contents
+    runs-on: ubuntu-latest
+    # This packages and inspects the generated .crate, rather than checking the
+    # working tree. The control proves an omitted examples/ include is caught:
+    # that was a historical release defect, where README users could not run
+    # the documented cargo example from crates.io.
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Control - omitted examples must fail package validation
+        run: python3 scripts/validate-package.py --negative-control
+      - name: Validate the actual published crate archive
+        run: python3 scripts/validate-package.py
 
   wasm32:
     name: wasm32 still builds
