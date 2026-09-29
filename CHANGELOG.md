@@ -20,7 +20,15 @@ Documentation and metadata only. No change to the API, the wire formats or behav
 - `Cargo.lock` moves from pqc-sig 0.4.0, now yanked, to 0.4.1. This lockfile only governs this
   repository's own builds; a crate that depends on this one resolves pqc-sig itself.
 
-## [Unreleased]
+## [0.9.0] - Unreleased
+
+### Changed (BREAKING)
+
+- **`Error` is now `#[non_exhaustive]`.** Downstream code that exhaustively
+  matches `Error` must add a wildcard arm (for example, `_ => { ... }`).
+  This breaking change permits future error variants without repeatedly
+  breaking downstream exhaustive matches. Existing variants and the
+  byte-oriented signing and verification APIs remain available.
 
 - Added transport-safe typed public verification material and signatures:
   `public_key_from_multibase`, `Identity::sign_typed`, and `verify_typed`.

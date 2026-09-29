@@ -198,7 +198,7 @@ pub use identity::{
 /// `pqc-sig`. They are representations and encoders only; this SDK continues
 /// to perform signing and verification through its embedded aethel-core
 /// component.
-pub use pqc_sig::{SigAlgorithm, SigPublicKey, Signature};
+pub use pqc_sig::{SigAlgorithm, SigError, SigPublicKey, Signature};
 
 #[cfg(not(target_arch = "wasm32"))]
 pub use verifier::Verifier;

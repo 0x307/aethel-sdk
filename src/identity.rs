@@ -146,6 +146,7 @@ impl core::fmt::Debug for Projection {
 
 /// Anything that can go wrong generating or using an identity.
 #[derive(Debug)]
+#[non_exhaustive]
 pub enum Error {
     /// The embedded component could not be loaded. Includes the integrity
     /// failure case, where the artifact is not the one the package declares.

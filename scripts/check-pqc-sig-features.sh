@@ -1,14 +1,13 @@
 #!/usr/bin/env bash
 # Assert that the SDK uses pqc-sig only for representations and encodings.
 #
-# This examines Cargo's resolved feature/dependency graph, not Cargo.toml text:
-# enabling pqc-sig's ml-dsa feature would pull a second crypto implementation
+# This examines Cargo's resolved feature/dependency graph, not Cargo.toml text.
+# The complete SDK runtime graph must not carry a second crypto implementation
 # above aethel-core's embedded component.
 set -euo pipefail
 
-check_graph() {
+check_features() {
     local features=$1
-    local dependencies=$2
 
     grep -Fq 'pqc-sig feature "std"' <<<"$features" ||
         { echo "pqc-sig std feature is absent"; return 1; }
@@ -16,32 +15,51 @@ check_graph() {
         echo "pqc-sig cryptographic implementation feature is enabled"
         return 1
     fi
-    if grep -Eq '(^|[[:space:]├└])((ml-dsa)|(slh-dsa)|(fn-dsa)|(ed25519-dalek))[[:space:]]' <<<"$dependencies"; then
-        echo "pqc-sig resolves a cryptographic implementation dependency"
-        return 1
-    fi
+}
+
+check_runtime_crypto() {
+    local graph=$1
+
+    local package
+    for package in ml-dsa slh-dsa fn-dsa ed25519-dalek; do
+        if grep -Eq "^${package} v" <<<"$graph"; then
+            echo "forbidden runtime crypto package detected: $package"
+            return 1
+        fi
+    done
 }
 
 if [[ "${1:-}" == "--self-test" ]]; then
-    good_features=$'pqc-sig v0.5.0\n└── pqc-sig feature "std"'
-    good_dependencies=$'pqc-sig v0.5.0\n├── bs58 v0.5.1\n└── serde v1.0.229'
-    check_graph "$good_features" "$good_dependencies"
+    temp_dir=$(mktemp -d)
+    trap 'rm -rf "$temp_dir"' EXIT
+    mkdir -p "$temp_dir/src"
+    cat >"$temp_dir/Cargo.toml" <<'EOF'
+[package]
+name = "pqc-sig-ml-dsa-positive-control"
+version = "0.0.0"
+edition = "2021"
 
-    bad_features=$'pqc-sig v0.5.0\n└── pqc-sig feature "ml-dsa"'
-    if check_graph "$bad_features" "$good_dependencies"; then
-        echo "positive control failed: ml-dsa feature was accepted"
+[dependencies]
+pqc-sig = { version = "0.5", default-features = false, features = ["std", "ml-dsa"] }
+EOF
+    : >"$temp_dir/src/lib.rs"
+
+    positive_features=$(cargo tree --manifest-path "$temp_dir/Cargo.toml" -e features,no-dev --prefix none)
+    if check_features "$positive_features"; then
+        echo "positive control failed: pqc-sig ml-dsa feature was accepted"
         exit 1
     fi
-    bad_dependencies=$'pqc-sig v0.5.0\n└── ml-dsa v0.1.1'
-    if check_graph "$good_features" "$bad_dependencies"; then
-        echo "positive control failed: ml-dsa dependency was accepted"
+    positive_graph=$(cargo tree --manifest-path "$temp_dir/Cargo.toml" -e normal --prefix none --format '{p}')
+    if check_runtime_crypto "$positive_graph"; then
+        echo "positive control failed: ml-dsa was not detected in the real runtime graph"
         exit 1
     fi
-    echo "positive controls passed: crypto features and dependencies are rejected"
+    echo "positive control passed: ml-dsa was detected in pqc-sig's real runtime graph"
     exit 0
 fi
 
-features=$(cargo tree -e features -i pqc-sig@0.5.0)
-dependencies=$(cargo tree -p pqc-sig@0.5.0 -e normal)
-check_graph "$features" "$dependencies"
-echo "pqc-sig 0.5.0 is std-only and has no cryptographic implementation dependency"
+features=$(cargo tree -e features,no-dev --prefix none)
+runtime_graph=$(cargo tree -e normal --prefix none --format '{p}')
+check_features "$features"
+check_runtime_crypto "$runtime_graph"
+echo "pqc-sig is std-only and the SDK runtime graph has no forbidden crypto packages"
