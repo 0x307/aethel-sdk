@@ -105,7 +105,10 @@
 //!   survives the process
 //! - [`Identity::split_for_recovery`] and [`Identity::recover_from_shares`],
 //!   authenticated 3-of-5 recovery over the canonical sealed identity
-//! - [`Identity::public_key_multibase`], the public key as a W3C Multikey
+//! - [`Identity::public_key_multibase`] and [`public_key_from_multibase`], W3C
+//!   Multikey transport and decoding for ML-DSA-65 verification material
+//! - [`Identity::sign_typed`] and [`verify_typed`], typed signatures and
+//!   verification using `pqc-sig` transport representations
 //! - [`Identity::project_at`], fresh, context-bound PLP projections
 //!
 //! With the `experimental-credentials` feature, `Identity::issue_credential`,
@@ -172,6 +175,9 @@ pub mod component;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod identity;
 
+#[cfg(not(target_arch = "wasm32"))]
+pub mod purpose;
+
 /// Credentials. Off by default: see the crate docs for why.
 #[cfg(all(not(target_arch = "wasm32"), feature = "experimental-credentials"))]
 pub mod disclosure;
@@ -186,10 +192,28 @@ pub use disclosure::{
 };
 
 #[cfg(not(target_arch = "wasm32"))]
-pub use identity::{verify, Identity, Projection, RecoveryShare, RecoveryShareSet};
+pub use identity::{
+    public_key_from_multibase, verify, verify_typed, verify_typed_with_purpose,
+    verify_with_purpose, Identity, Projection, RecoveryShare, RecoveryShareSet,
+};
+
+#[cfg(not(target_arch = "wasm32"))]
+pub use purpose::Purpose;
+
+/// Canonical algorithm-labelled signature transport types supplied by
+/// `pqc-sig`. They are representations and encoders only; this SDK continues
+/// to perform signing and verification through its embedded aethel-core
+/// component.
+pub use pqc_sig::{SigAlgorithm, SigError, SigPublicKey, Signature};
 
 #[cfg(not(target_arch = "wasm32"))]
 pub use verifier::Verifier;
+
+/// The agent-identity guide's Rust blocks, compiled as doctests so the guide
+/// cannot drift from the API.
+#[cfg(all(doctest, not(target_arch = "wasm32")))]
+#[doc = include_str!("../docs/AGENT-IDENTITY.md")]
+mod agent_identity_guide {}
 
 /// The credential API must not be reachable without its feature.
 ///

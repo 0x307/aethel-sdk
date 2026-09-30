@@ -30,12 +30,14 @@ include = [
     "examples/**/*",
     "core/**/*",
     "scripts/sync-core.sh",
+    "scripts/check-pqc-sig-features.sh",
     # The comparison check and its allowlist ship too. SECURITY-MODEL.md points
     # at them as the enforcement behind the timing claim, and a claim you cannot
     # inspect from the package you installed is worth less.
     "scripts/check-comparisons.sh",
     "scripts/allowed-comparisons.txt",
     "README.md",
+    "docs/**/*",
     "CHANGELOG.md",
     "SECURITY-MODEL.md",
     "LICENSE",
@@ -69,12 +71,10 @@ required-features = ["experimental-credentials"]
 # component.
 sha2 = "0.10"
 
-# base58btc, the alphabet W3C Multikey requires. An encoding, not a
-# cryptographic operation: no key is derived, checked, or protected by it, and
-# the bytes it encodes come out of the component already public. The multicodec
-# varint prefix is eight lines below and stays here rather than pulling a
-# signature library in for it.
-bs58 = "0.5"
+# Algorithm-labelled public keys and signatures, including the canonical W3C
+# Multikey and transport encodings. Keep cryptographic implementation features
+# off: aethel-core's embedded component remains this SDK's only crypto engine.
+pqc-sig = { version = "0.5", default-features = false, features = ["std"] }
 
 # Wiping this crate's copy of the entropy passed into key generation. The secret
 # itself is never here, but the input that determines it briefly is.
@@ -94,27 +94,19 @@ version = "0.2"
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 wasmtime = { version = "48.0.1", default-features = false, features = ["runtime", "component-model", "cranelift"] }
 
-# The execution proof compares the component against aethel-core's native API at
-# the same pinned revision. It is a dev-dependency: this crate never calls
-# aethel-core directly at runtime, it calls the component.
+# The execution proof compares the component against aethel-core's native API.
+# It is a dev-dependency: this crate never calls aethel-core directly at
+# runtime, it calls the component.
 #
-# `rev` MUST equal the one in core/pin.toml, or the proof compares the vendored
-# component against a different revision's native API while claiming otherwise.
-# scripts/sync-core.sh rewrites pin.toml and not this line, so they drifted once
-# already; the_dev_dependency_matches_the_vendored_revision in
-# tests/embedded_artifact.rs now fails if they disagree.
-#
-# `version` matters only at publish time: cargo drops the git source when
-# packaging and resolves this requirement against crates.io, so a stale one
-# fails `cargo publish` long after the local build stopped caring.
+# Exact, from crates.io, never a range and never a git source. A range would let
+# the comparison target move under the proof on the next patch. The pin is
+# checked by bytes, not labels: tests/core_provenance.rs asserts that
+# aethel_core::COMPONENT_SHA256 equals the digest of the component vendored in
+# core/, and fails if they describe different builds. scripts/sync-core.sh
+# refuses to finish unless this pin is the version it just vendored.
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
-aethel-core = { version = "0.7", git = "https://github.com/0x307/aethel-core", rev = "b98fe074975fdba822c3827c46a92090e59ea914" }
+aethel-core = "=0.7.4"
 
 [dev-dependencies]
-# Independent verifiers for the Multikey encoding, used only by
-# tests/multikey.rs. `multibase` is a third-party implementation of the
-# multiformats spec, and `pqc-sig` is a separate codebase from this one. If our
-# eight lines of varint and our choice of base are wrong, a decoder that shares
-# no code with them says so.
+# Independent Multibase decoder used by tests/multikey.rs.
 multibase = "0.9"
-pqc-sig = "0.4"

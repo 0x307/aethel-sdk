@@ -156,7 +156,25 @@ interface identity {
 
     /// Sign a message. FIPS 204 deterministic variant, so no randomness is
     /// needed at call time.
+    ///
+    /// This is signing under the empty context. To bind a signature to what it
+    /// is for, use `sign-with-purpose`.
     sign: func(message: list<u8>) -> result<list<u8>, identity-error>;
+
+    /// Sign a message under a purpose. FIPS 204 deterministic variant, with
+    /// `purpose` as the FIPS 204 context string (native side:
+    /// `Identity::sign_with_purpose`).
+    ///
+    /// A signature made under one purpose does not verify under another, nor
+    /// under the empty context `sign` uses. That is what stops a signature made
+    /// for one statement type being replayed as another. `purpose` is at most
+    /// 255 bytes, or this returns `invalid-input-length`. Use a purpose from
+    /// the registry in `docs/PURPOSES.md`, and never sign under a purpose other
+    /// than the one the caller asked for.
+    ///
+    /// Additive: `sign` is unchanged, and `identity-error`'s variant ordinals
+    /// are unchanged.
+    sign-with-purpose: func(purpose: list<u8>, message: list<u8>) -> result<list<u8>, identity-error>;
 
     /// Project this identity at context tau. See `plp-project-at-context` for
     /// what `randomness` must be.
@@ -319,7 +337,46 @@ interface identity {
   ///
   /// Returns `ok(false)` for a well-formed signature that does not verify, and
   /// `err` only for input that cannot be parsed.
+  ///
+  /// Verifies under the empty context only. A signature made with
+  /// `sign-with-purpose` returns `ok(false)` here; verify it with
+  /// `verify-signature-with-purpose`.
   verify-signature: func(public-key: list<u8>, message: list<u8>, signature: list<u8>) -> result<bool, identity-error>;
+
+  /// Verify an ML-DSA-65 signature made under `purpose` (native side:
+  /// `signing::verify_with_purpose`).
+  ///
+  /// Returns `ok(false)` for a well-formed signature that does not verify
+  /// under this purpose, including one made under a different purpose or with
+  /// plain `sign`, and `err` only for input that cannot be parsed. `purpose`
+  /// is at most 255 bytes, or this returns `invalid-input-length`.
+  ///
+  /// This is what lets a verifier that isn't written in Rust check purpose
+  /// separation. Additive: `verify-signature` is unchanged, and
+  /// `identity-error`'s variant ordinals are unchanged.
+  verify-signature-with-purpose: func(public-key: list<u8>, purpose: list<u8>, message: list<u8>, signature: list<u8>) -> result<bool, identity-error>;
+
+  /// A purpose in the registry: the constant's name and the exact bytes to pass
+  /// as `purpose` to `sign-with-purpose` and `verify-signature-with-purpose`.
+  record registered-purpose {
+    /// The registry's name for it, for example `AUTH_LOGIN_V1`. Stable: a
+    /// rename is a reviewed change, like a change to the bytes.
+    name: string,
+    /// The purpose bytes. Non-empty, at most 255 bytes, distinct from every
+    /// other entry.
+    bytes: list<u8>,
+  }
+
+  /// Every purpose in the registry (`signing::purpose::ALL`), in declaration
+  /// order.
+  ///
+  /// This is the authoritative list for anything above L1. A binding that
+  /// wants to offer only registered purposes reads them from here rather than
+  /// copying the constants, so a purpose added to the registry reaches it
+  /// without a hand edit and without that binding linking any cryptography.
+  /// Deterministic, takes no input and cannot fail. Additive: no existing
+  /// function or `identity-error` ordinal changes.
+  registered-purposes: func() -> list<registered-purpose>;
 
   /// Verify from `aethel-plp-1` wire bytes, binding the verifier's own
   /// context (A-4).

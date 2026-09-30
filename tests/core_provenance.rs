@@ -5,19 +5,16 @@
 //! its digest in `core/component.sha256`. Those two values answer the same
 //! question from opposite directions, and nothing compared them.
 //!
-//! What that gap allows: `scripts/sync-core.sh` re-vendors `core/`, and the
-//! dev-dependency's `rev` moves with it. But a hand edit to either, a partial
-//! re-vendor, or a `cargo publish` that resolves the dev-dependency against
-//! crates.io rather than the pinned git revision can leave the linked crate and
-//! the embedded artifact describing different builds while every existing check
-//! still passes. `the_dev_dependency_matches_the_vendored_revision` compares two
-//! strings in two local files and cannot see this; it is about labels, and this
-//! is about bytes.
+//! What that gap allows: `scripts/sync-core.sh` re-vendors `core/` and checks that
+//! the dev-dependency is the exact crates.io pin of what it vendored. But a hand
+//! edit to either, or a partial re-vendor, can leave the linked crate and the
+//! embedded artifact describing different builds while a comparison of labels
+//! still passes. This compares bytes.
 //!
-//! This is C1-03's AC4, in the form that can actually hold. Comparing revisions
-//! cannot work — `core/pin.toml` names merge commits, which did not exist when
-//! the crate recorded its own provenance — so the comparison is on the digest,
-//! which describes the artifact rather than a label.
+//! This is C1-03's AC4 and COR-16's, in the form that can actually hold.
+//! Comparing revisions cannot work — `core/pin.toml` names merge commits, which
+//! did not exist when the crate recorded its own provenance — so the comparison
+//! is on the digest, which describes the artifact rather than a label.
 
 #![cfg(not(target_arch = "wasm32"))]
 

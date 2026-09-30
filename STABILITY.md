@@ -54,6 +54,14 @@ without you changing anything.
 the conservative default this policy exists to give you — the cost of an unnecessary minor
 version bump is much lower than the cost of a silent break.
 
+### Public dependency re-exports
+
+The SDK's re-exports of `pqc-sig` types — `SigPublicKey`, `Signature`, and
+`SigError` — are part of the SDK's public semver surface. An incompatible
+`pqc-sig` type or API change that reaches those re-exports is a breaking SDK
+change and requires the applicable breaking release under this policy (a 0.x
+minor release today, or a major release after 1.0).
+
 ## 3. Deprecation before removal
 
 Nothing is deleted without a deprecation cycle first:

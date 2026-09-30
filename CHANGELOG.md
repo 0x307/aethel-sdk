@@ -20,8 +20,63 @@ Documentation and metadata only. No change to the API, the wire formats or behav
 - `Cargo.lock` moves from pqc-sig 0.4.0, now yanked, to 0.4.1. This lockfile only governs this
   repository's own builds; a crate that depends on this one resolves pqc-sig itself.
 
-## [Unreleased]
+## [0.9.0] - Unreleased
 
+### Added
+
+- `docs/AGENT-IDENTITY.md`, a guide to running an agent identity: persistence, publishing the
+  key, trusting a signer, and offline receipts. Its Rust blocks are compiled as doctests.
+- `examples/trusted_signer.rs` and `examples/offline_receipt.rs`, both run in CI. The second
+  signs and verifies in separate processes, and CI flips a byte to show verification fails.
+
+- **Purpose-separated signing (COR-18).** `Identity::sign_with_purpose`,
+  `Identity::sign_typed_with_purpose`, `verify_with_purpose` and `verify_typed_with_purpose`,
+  taking a `Purpose`. A signature made under one purpose fails under every other purpose and
+  under the empty context; a plain `sign` signature fails under every purpose. `Purpose` comes
+  from aethel-core's registry, read from the embedded component (`Purpose::registered()`,
+  `Purpose::from_name`), and has no constructor from bytes, so an ad hoc context string cannot
+  be used. A name that is not registered is `Error::UnknownPurpose`. `sign` and `verify` are
+  unchanged and remain the empty context. Tests check every registered purpose against every
+  other, in both directions against aethel-core's native implementation, and that the SDK's
+  registry is core's.
+
+### Changed
+
+- **The embedded aethel-core component moves from 0.7.0 to 0.7.4.** Re-vendored with
+  `scripts/sync-core.sh` at the v0.7.4 commit and reproduced twice in the canonical container;
+  the digest equals core's own recorded `COMPONENT_SHA256` (`6781752478a8...`). The SDK does not
+  expose the new core functions yet; this only changes what is embedded.
+- **The aethel-core dev-dependency is an exact crates.io pin, `=0.7.4`, with no git source.**
+  The execution proof compares the component against that release's native API, and
+  `tests/core_provenance.rs` asserts by bytes that the linked crate and the vendored component
+  are the same build. `tests/embedded_artifact.rs` fails if a git source or a range returns, and
+  shows it can fail. `scripts/sync-core.sh` no longer rewrites a revision in `Cargo.toml`; it
+  refuses to finish unless the pin is the version it just vendored. The crates.io requirement
+  check in CI now understands the exact form and has controls for it.
+
+### Changed (BREAKING)
+
+- **`Error` is now `#[non_exhaustive]`.** Downstream code that exhaustively
+  matches `Error` must add a wildcard arm (for example, `_ => { ... }`).
+  This breaking change permits future error variants without repeatedly
+  breaking downstream exhaustive matches. Existing variants and the
+  byte-oriented signing and verification APIs remain available.
+
+- Added transport-safe typed public verification material and signatures:
+  `public_key_from_multibase`, `Identity::sign_typed`, and `verify_typed`.
+  They use `pqc-sig`'s public `SigPublicKey`, `Signature`, and JSON/base64url
+  encodings, while Aethel's embedded core remains the only signing and
+  verification implementation.
+- `Identity::public_key_multibase()` now delegates to canonical `pqc-sig`
+  Multikey encoding. Its ML-DSA-65 output is unchanged; the SDK's duplicate
+  varint and Multikey encoder were removed.
+- `pqc-sig` 0.5 is now a runtime dependency with default features disabled and
+  only `std` enabled. CI checks Cargo's resolved feature/dependency graph and
+  proves its checker rejects a crypto implementation feature/dependency.
+- Existing byte-oriented `Identity::sign` and `verify` APIs remain supported.
+  New integrations should use the typed API and JSON when an algorithm-labelled
+  signature must cross a process boundary; base64url encodes signature bytes
+  and requires an accompanying algorithm at decode time.
 - Added the manually triggered post-publish smoke workflow. Its external
   consumer helper was exercised locally against the already published `0.8.1`
   release; that rehearsal does not verify any future unpublished release.

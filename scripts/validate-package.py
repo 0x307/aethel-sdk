@@ -45,14 +45,19 @@ EXPECTED_PATHS = frozenset(
     examples/bench_verify.rs
     examples/projection.rs
     examples/quickstart.rs
+    examples/offline_receipt.rs
     examples/seal_fixture.rs
+    examples/trusted_signer.rs
+    docs/AGENT-IDENTITY.md
     scripts/allowed-comparisons.txt
     scripts/check-comparisons.sh
+    scripts/check-pqc-sig-features.sh
     scripts/sync-core.sh
     src/artifact.rs
     src/component.rs
     src/disclosure.rs
     src/identity.rs
+    src/purpose.rs
     src/lib.rs
     src/verifier.rs
     tests/build_inputs.rs
@@ -61,10 +66,12 @@ EXPECTED_PATHS = frozenset(
     tests/disclosure.rs
     tests/embedded_artifact.rs
     tests/fixtures/sealed-identity.bin
+    tests/fixtures/historical-ml-dsa-65.multikey
     tests/identity.rs
     tests/multikey.rs
     tests/network_isolation_negative_control.rs
     tests/persistence.rs
+    tests/purpose.rs
     tests/projection.rs
     tests/readme_pin.rs
     tests/verifier.rs
