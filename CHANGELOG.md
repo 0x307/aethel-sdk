@@ -20,7 +20,7 @@ Documentation and metadata only. No change to the API, the wire formats or behav
 - `Cargo.lock` moves from pqc-sig 0.4.0, now yanked, to 0.4.1. This lockfile only governs this
   repository's own builds; a crate that depends on this one resolves pqc-sig itself.
 
-## [0.9.0] - Unreleased
+## [0.9.0] - 2026-09-30
 
 ### Added
 

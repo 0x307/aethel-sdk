@@ -57,7 +57,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // A trusted key does not vouch for a different statement.
     assert!(
-        !accept(&allowlist, &from_trusted.0, b"a different statement", &from_trusted.1)?,
+        !accept(
+            &allowlist,
+            &from_trusted.0,
+            b"a different statement",
+            &from_trusted.1
+        )?,
         "a signature was accepted for a message it did not sign"
     );
 

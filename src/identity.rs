@@ -910,7 +910,12 @@ pub fn verify_typed_with_purpose(
 ) -> Result<bool, Error> {
     validate_ml_dsa_65_public_key(public_key)?;
     validate_ml_dsa_65_signature(signature)?;
-    verify_with_purpose(public_key.as_bytes(), purpose, message, signature.as_bytes())
+    verify_with_purpose(
+        public_key.as_bytes(),
+        purpose,
+        message,
+        signature.as_bytes(),
+    )
 }
 
 /// Decode ML-DSA-65 public verification material from a W3C Multikey.
