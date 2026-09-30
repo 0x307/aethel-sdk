@@ -26,6 +26,8 @@
 //! secret, and two identities cannot observe each other.
 
 use pqc_sig::{SigAlgorithm, SigPublicKey, Signature};
+
+use crate::purpose::Purpose;
 use subtle::ConstantTimeEq;
 use zeroize::Zeroize;
 
@@ -184,6 +186,8 @@ pub enum Error {
     InvalidTypedPublicKey(&'static str),
     /// Typed signature material was not ML-DSA-65 or had the wrong length.
     InvalidTypedSignature(&'static str),
+    /// A purpose name that is not in aethel-core's registry.
+    UnknownPurpose(String),
 }
 
 impl core::fmt::Display for Error {
@@ -215,6 +219,7 @@ impl core::fmt::Display for Error {
             Error::InvalidTypedSignature(reason) => {
                 write!(f, "invalid ML-DSA-65 signature: {reason}")
             }
+            Error::UnknownPurpose(name) => write!(f, "{name:?} is not a registered purpose"),
         }
     }
 }
@@ -589,6 +594,40 @@ impl Identity {
         Ok(signature)
     }
 
+    /// Sign a message under a registered purpose.
+    ///
+    /// The signature is bound to `purpose`: it fails verification under any
+    /// other purpose and under the empty context, which is what [`Self::sign`]
+    /// uses. Use one purpose per kind of statement and never sign under a purpose
+    /// other than the one the caller asked for.
+    pub fn sign_with_purpose(
+        &mut self,
+        purpose: &Purpose,
+        message: &[u8],
+    ) -> Result<Vec<u8>, Error> {
+        let signature = self
+            .bindings
+            .aethel_core_identity()
+            .master_identity()
+            .call_sign_with_purpose(&mut self.store, self.handle, purpose.as_bytes(), message)??;
+        Ok(signature)
+    }
+
+    /// [`Self::sign_with_purpose`], returned as an algorithm-labelled
+    /// [`Signature`]. Verify it with [`verify_typed_with_purpose`].
+    pub fn sign_typed_with_purpose(
+        &mut self,
+        purpose: &Purpose,
+        message: &[u8],
+    ) -> Result<Signature, Error> {
+        let signature = Signature::new(
+            SigAlgorithm::MlDsa65,
+            self.sign_with_purpose(purpose, message)?,
+        );
+        validate_ml_dsa_65_signature(&signature)?;
+        Ok(signature)
+    }
+
     /// Split this identity's canonical sealed representation into authenticated
     /// 3-of-5 recovery shares.
     ///
@@ -834,6 +873,44 @@ pub fn verify(public_key: &[u8], message: &[u8], signature: &[u8]) -> Result<boo
         .aethel_core_identity()
         .call_verify_signature(&mut store, public_key, message, signature)??;
     Ok(verified)
+}
+
+/// Verify a signature made under a registered purpose.
+///
+/// Returns `Ok(false)` for a well-formed signature that does not verify under
+/// this purpose, including one made under a different purpose or with plain
+/// [`Identity::sign`], and `Err` only for input that cannot be parsed.
+pub fn verify_with_purpose(
+    public_key: &[u8],
+    purpose: &Purpose,
+    message: &[u8],
+    signature: &[u8],
+) -> Result<bool, Error> {
+    let (mut store, bindings) = component::load()?;
+    let verified = bindings
+        .aethel_core_identity()
+        .call_verify_signature_with_purpose(
+            &mut store,
+            public_key,
+            purpose.as_bytes(),
+            message,
+            signature,
+        )??;
+    Ok(verified)
+}
+
+/// [`verify_with_purpose`] for typed public verification material and a typed
+/// signature. Algorithm labels and lengths are checked first, as in
+/// [`verify_typed`].
+pub fn verify_typed_with_purpose(
+    public_key: &SigPublicKey,
+    purpose: &Purpose,
+    message: &[u8],
+    signature: &Signature,
+) -> Result<bool, Error> {
+    validate_ml_dsa_65_public_key(public_key)?;
+    validate_ml_dsa_65_signature(signature)?;
+    verify_with_purpose(public_key.as_bytes(), purpose, message, signature.as_bytes())
 }
 
 /// Decode ML-DSA-65 public verification material from a W3C Multikey.

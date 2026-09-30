@@ -57,6 +57,7 @@ EXPECTED_PATHS = frozenset(
     src/component.rs
     src/disclosure.rs
     src/identity.rs
+    src/purpose.rs
     src/lib.rs
     src/verifier.rs
     tests/build_inputs.rs
@@ -70,6 +71,7 @@ EXPECTED_PATHS = frozenset(
     tests/multikey.rs
     tests/network_isolation_negative_control.rs
     tests/persistence.rs
+    tests/purpose.rs
     tests/projection.rs
     tests/readme_pin.rs
     tests/verifier.rs
