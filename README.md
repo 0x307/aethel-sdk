@@ -143,6 +143,12 @@ signature-byte encoding and must be accompanied by its algorithm when decoded wi
 key over this message. Your application must independently establish whether that public identity
 is trusted or authorized for the action.
 
+## Running an agent identity
+
+[`docs/AGENT-IDENTITY.md`](docs/AGENT-IDENTITY.md) covers keeping an identity across restarts,
+deciding whom to trust, and offline receipts. Two runnable examples go with it:
+`cargo run --example trusted_signer` and `cargo run --example offline_receipt -- sign ./receipt`.
+
 ## Threshold recovery
 
 The embedded core currently provides authenticated, fixed-policy 3-of-5 HTSS. The SDK splits

@@ -22,6 +22,13 @@ Documentation and metadata only. No change to the API, the wire formats or behav
 
 ## [0.9.0] - Unreleased
 
+### Added
+
+- `docs/AGENT-IDENTITY.md`, a guide to running an agent identity: persistence, publishing the
+  key, trusting a signer, and offline receipts. Its Rust blocks are compiled as doctests.
+- `examples/trusted_signer.rs` and `examples/offline_receipt.rs`, both run in CI. The second
+  signs and verifies in separate processes, and CI flips a byte to show verification fails.
+
 ### Changed (BREAKING)
 
 - **`Error` is now `#[non_exhaustive]`.** Downstream code that exhaustively

@@ -37,6 +37,7 @@ include = [
     "scripts/check-comparisons.sh",
     "scripts/allowed-comparisons.txt",
     "README.md",
+    "docs/**/*",
     "CHANGELOG.md",
     "SECURITY-MODEL.md",
     "LICENSE",

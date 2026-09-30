@@ -21,6 +21,34 @@ jobs:
       # The README quickstart is kept as an example and run here, so a broken
       # quickstart fails CI rather than a reader's first five minutes.
       - run: cargo run --example quickstart
+      # The agent-identity guide's examples. trusted_signer asserts both that
+      # the trusted signer is accepted and that the untrusted one is refused.
+      - run: cargo run --example trusted_signer
+      # offline_receipt signs and verifies in separate processes that share only
+      # files. The tamper steps prove the verify step can fail: a receipt with
+      # one flipped byte must be refused, in the statement and in the signature.
+      - name: offline receipt, signed and verified in separate processes
+        run: |
+          cargo run --example offline_receipt -- sign "$RUNNER_TEMP/receipt"
+          cargo run --example offline_receipt -- verify "$RUNNER_TEMP/receipt"
+      - name: offline receipt, one flipped byte must fail
+        run: |
+          for f in statement.txt signature.json; do
+            rm -rf "$RUNNER_TEMP/tampered"
+            cp -r "$RUNNER_TEMP/receipt" "$RUNNER_TEMP/tampered"
+            python3 - "$RUNNER_TEMP/tampered/$f" <<'PY'
+          import sys
+          p = sys.argv[1]
+          b = bytearray(open(p, "rb").read())
+          i = len(b) // 2
+          b[i] ^= 1
+          open(p, "wb").write(b)
+          PY
+            if cargo run --example offline_receipt -- verify "$RUNNER_TEMP/tampered"; then
+              echo "tampered $f was accepted" >&2
+              exit 1
+            fi
+          done
       # Credentials are off by default (experimental-credentials). Build and
       # test them as well, so gated code cannot rot where nobody is looking.
       - run: cargo build --all-targets --features experimental-credentials

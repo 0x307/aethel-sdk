@@ -203,6 +203,12 @@ pub use pqc_sig::{SigAlgorithm, SigError, SigPublicKey, Signature};
 #[cfg(not(target_arch = "wasm32"))]
 pub use verifier::Verifier;
 
+/// The agent-identity guide's Rust blocks, compiled as doctests so the guide
+/// cannot drift from the API.
+#[cfg(all(doctest, not(target_arch = "wasm32")))]
+#[doc = include_str!("../docs/AGENT-IDENTITY.md")]
+mod agent_identity_guide {}
+
 /// The credential API must not be reachable without its feature.
 ///
 /// This module is compiled only when the feature is off, so its doctest runs in

@@ -45,7 +45,10 @@ EXPECTED_PATHS = frozenset(
     examples/bench_verify.rs
     examples/projection.rs
     examples/quickstart.rs
+    examples/offline_receipt.rs
     examples/seal_fixture.rs
+    examples/trusted_signer.rs
+    docs/AGENT-IDENTITY.md
     scripts/allowed-comparisons.txt
     scripts/check-comparisons.sh
     scripts/check-pqc-sig-features.sh
