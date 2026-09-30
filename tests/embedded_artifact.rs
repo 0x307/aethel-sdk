@@ -131,7 +131,11 @@ fn the_pinned_revision_is_a_full_commit_sha() {
 /// deleting the line cannot make the check pass.
 fn aethel_core_pin_problem(manifest: &str) -> Option<String> {
     let live = |line: &&str| !line.trim_start().starts_with('#');
-    if manifest.lines().filter(live).any(|l| l.contains("git = \"")) {
+    if manifest
+        .lines()
+        .filter(live)
+        .any(|l| l.contains("git = \""))
+    {
         return Some("the manifest has a git source".into());
     }
     let Some(line) = manifest
@@ -179,9 +183,16 @@ fn the_aethel_core_dev_dependency_is_an_exact_crates_io_pin() {
         "the aethel-core dev-dependency is not an exact crates.io pin"
     );
 
-    let git = "aethel-core = { version = \"0.7\", git = \"https://example.invalid/x\", rev = \"abc\" }";
-    assert!(aethel_core_pin_problem(git).is_some(), "a git source was accepted");
-    assert!(aethel_core_pin_problem("aethel-core = \"0.7\"").is_some(), "a range was accepted");
+    let git =
+        "aethel-core = { version = \"0.7\", git = \"https://example.invalid/x\", rev = \"abc\" }";
+    assert!(
+        aethel_core_pin_problem(git).is_some(),
+        "a git source was accepted"
+    );
+    assert!(
+        aethel_core_pin_problem("aethel-core = \"0.7\"").is_some(),
+        "a range was accepted"
+    );
     assert!(
         aethel_core_pin_problem("aethel-core = \"=0.7\"").is_some(),
         "a partial version was accepted"

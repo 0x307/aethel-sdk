@@ -49,7 +49,8 @@ fn the_linked_crate_describes_the_component_this_crate_embeds() {
 fn the_linked_crate_describes_the_bytes_actually_embedded() {
     let embedded = aethel_sdk::artifact::sha256_hex(aethel_sdk::artifact::COMPONENT);
     assert_eq!(
-        aethel_core::COMPONENT_SHA256, embedded,
+        aethel_core::COMPONENT_SHA256,
+        embedded,
         "the linked aethel-core describes a component whose bytes are not the \
          ones embedded here"
     );
@@ -71,5 +72,9 @@ fn the_digest_extraction_can_fail_and_reads_the_right_field() {
         aethel_core::COMPONENT_SHA256,
         "the extraction reports a match for a plainly different digest"
     );
-    assert_eq!(extracted.len(), 64, "the extraction is not taking the digest field");
+    assert_eq!(
+        extracted.len(),
+        64,
+        "the extraction is not taking the digest field"
+    );
 }

@@ -20,8 +20,14 @@ fn every_readme_dependency_line_names_this_minor_version() {
         .filter(|line| line.starts_with("aethel-sdk = "))
         .collect();
 
-    assert!(!pins.is_empty(), "README has no `aethel-sdk = ` dependency line");
+    assert!(
+        !pins.is_empty(),
+        "README has no `aethel-sdk = ` dependency line"
+    );
     for pin in pins {
-        assert_eq!(pin, expected, "README pin does not match crate version {version}");
+        assert_eq!(
+            pin, expected,
+            "README pin does not match crate version {version}"
+        );
     }
 }

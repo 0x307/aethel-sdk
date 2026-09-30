@@ -22,7 +22,10 @@ fn sign(dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
     fs::write(dir.join("statement.txt"), statement)?;
     fs::write(dir.join("signature.json"), signature.to_json()?)?;
     fs::write(dir.join("agent.multikey"), agent.public_key_multibase())?;
-    println!("signed: wrote statement.txt, signature.json, agent.multikey to {}", dir.display());
+    println!(
+        "signed: wrote statement.txt, signature.json, agent.multikey to {}",
+        dir.display()
+    );
     Ok(())
 }
 

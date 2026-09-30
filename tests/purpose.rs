@@ -24,7 +24,10 @@ fn registry() -> &'static [Purpose] {
 fn a_purpose_signature_verifies_only_under_its_own_purpose() {
     let mut identity = Identity::from_entropy(ENTROPY).expect("identity");
     let public_key = identity.public_key().to_vec();
-    assert!(registry().len() > 1, "a registry of one cannot show separation");
+    assert!(
+        registry().len() > 1,
+        "a registry of one cannot show separation"
+    );
 
     for purpose in registry() {
         let signature = identity
@@ -32,14 +35,18 @@ fn a_purpose_signature_verifies_only_under_its_own_purpose() {
             .unwrap_or_else(|e| panic!("signing under {} failed: {e}", purpose.name()));
 
         for other in registry() {
-            let verified = verify_with_purpose(&public_key, other, MESSAGE, &signature)
-                .expect("verification");
+            let verified =
+                verify_with_purpose(&public_key, other, MESSAGE, &signature).expect("verification");
             assert_eq!(
                 verified,
                 purpose == other,
                 "a signature made under {} {} under {}",
                 purpose.name(),
-                if verified { "verified" } else { "failed to verify" },
+                if verified {
+                    "verified"
+                } else {
+                    "failed to verify"
+                },
                 other.name()
             );
         }
@@ -59,7 +66,10 @@ fn a_plain_signature_fails_under_every_purpose() {
     let public_key = identity.public_key().to_vec();
     let plain = identity.sign(MESSAGE).expect("sign");
 
-    assert!(verify(&public_key, MESSAGE, &plain).expect("verify"), "plain verify failed");
+    assert!(
+        verify(&public_key, MESSAGE, &plain).expect("verify"),
+        "plain verify failed"
+    );
     for purpose in registry() {
         assert!(
             !verify_with_purpose(&public_key, purpose, MESSAGE, &plain).expect("verification"),
@@ -75,7 +85,11 @@ fn a_plain_signature_fails_under_every_purpose() {
 fn the_sdk_agrees_with_aethel_cores_native_purpose_api() {
     let mut sdk = Identity::from_entropy(ENTROPY).expect("identity");
     let native = aethel_core::signing::Identity::generate(ENTROPY).expect("native identity");
-    assert_eq!(sdk.public_key(), native.public_key().as_slice(), "same entropy, different key");
+    assert_eq!(
+        sdk.public_key(),
+        native.public_key().as_slice(),
+        "same entropy, different key"
+    );
     let public_key = sdk.public_key().to_vec();
 
     for purpose in registry() {
@@ -101,7 +115,10 @@ fn the_sdk_agrees_with_aethel_cores_native_purpose_api() {
             "the SDK rejected a native signature under {}",
             purpose.name()
         );
-        assert_eq!(from_sdk, from_native, "signing is deterministic, so they must match");
+        assert_eq!(
+            from_sdk, from_native,
+            "signing is deterministic, so they must match"
+        );
     }
 }
 
@@ -111,7 +128,11 @@ fn the_sdk_agrees_with_aethel_cores_native_purpose_api() {
 #[test]
 fn the_sdk_registry_is_aethel_cores_registry() {
     let native = aethel_core::signing::purpose::ALL;
-    assert_eq!(registry().len(), native.len(), "the registries differ in size");
+    assert_eq!(
+        registry().len(),
+        native.len(),
+        "the registries differ in size"
+    );
     for (purpose, (name, bytes)) in registry().iter().zip(native) {
         assert_eq!(purpose.name(), *name);
         assert_eq!(purpose.as_bytes(), *bytes, "{name}");
@@ -123,7 +144,10 @@ fn the_sdk_registry_is_aethel_cores_registry() {
 /// from bytes: the two `compile_fail` doctests on `Purpose` pin that.
 #[test]
 fn only_registered_purposes_can_be_named() {
-    assert!(Purpose::from_name("AUTH_LOGIN_V1").is_ok(), "a registered purpose was not found");
+    assert!(
+        Purpose::from_name("AUTH_LOGIN_V1").is_ok(),
+        "a registered purpose was not found"
+    );
     match Purpose::from_name("MADE_UP_V1") {
         Err(Error::UnknownPurpose(name)) => assert_eq!(name, "MADE_UP_V1"),
         other => panic!("an unregistered name was not refused: {other:?}"),
@@ -151,6 +175,7 @@ fn typed_purpose_signatures_keep_the_separation_across_a_boundary() {
 
     assert!(verify_typed_with_purpose(&key, &login, MESSAGE, &received).expect("verify"));
     assert!(!verify_typed_with_purpose(&key, &step_up, MESSAGE, &received).expect("verify"));
-    assert!(!verify_typed_with_purpose(&key, &login, b"another statement", &received)
-        .expect("verify"));
+    assert!(
+        !verify_typed_with_purpose(&key, &login, b"another statement", &received).expect("verify")
+    );
 }
