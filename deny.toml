@@ -57,9 +57,6 @@ unknown-registry = "deny"
 unknown-git = "deny"
 allow-registry = ["https://github.com/rust-lang/crates.io-index"]
 allow-git = [
-    # aethel-core, pinned by revision, as a dev-dependency only. The execution proof
-    # compares the embedded component against the native API at the exact revision the
-    # component was built from, and crates.io 0.1.0 predates the soundness fixes, so the
-    # comparison has to be against the revision rather than the release.
-    "https://github.com/0x307/aethel-core",
+    # No git sources. aethel-core is an exact crates.io pin (=X.Y.Z), as a
+    # dev-dependency only, and tests/embedded_artifact.rs fails if a git source returns.
 ]

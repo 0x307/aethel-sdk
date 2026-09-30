@@ -5,9 +5,9 @@
 
     aethel-core = { version = "0.7", git = ..., rev = ... }
 
-against crates.io. Nothing local sees that. `the_dev_dependency_matches_the_vendored_revision`
-compares two strings in two files in this repository; it cannot see the registry, and the
-registry is where the failure lives.
+against crates.io. Nothing local sees that while a git source satisfies it. The dependency is
+now an exact crates.io pin (`aethel-core = "=0.7.4"`), so there is no git source to hide
+behind, and this still checks the registry: that the pinned release exists and is not yanked.
 
 That is how 0.5.2's publish failed: the requirement said "0.3" while every 0.3.x had been
 yanked upstream. The local build was green throughout, because the git source satisfied it.
@@ -60,7 +60,9 @@ def requirement_from_manifest(path):
     with open(path, encoding="utf-8") as f:
         for line in f:
             if line.lstrip().startswith(f"{CRATE} = "):
-                m = re.search(r'version\s*=\s*"([^"]+)"', line)
+                m = re.search(r'version\s*=\s*"([^"]+)"', line) or re.match(
+                    rf'\s*{CRATE}\s*=\s*"([^"]+)"', line
+                )
                 if not m:
                     fail_usage(
                         f"{path}: the {CRATE} dependency line carries no version requirement.\n"
@@ -79,12 +81,16 @@ def parse_version(v):
 def caret_bounds(req):
     """Lower and upper bound for a cargo default (caret) requirement.
 
-    Only the bare and ^-prefixed forms are modelled, because those are what this
-    manifest uses. Anything else exits rather than guessing: a comparison this
+    Only the bare, ^-prefixed and exact (=x.y.z) forms are modelled, because those
+    are what this manifest uses. Anything else exits rather than guessing: a comparison this
     script silently got wrong would be worse than no check, since the job would
     still report green.
     """
     raw = req.strip()
+    exact = re.fullmatch(r"=\s*(\d+)\.(\d+)\.(\d+)", raw)
+    if exact:                       # "=0.7.4" -> >=0.7.4, <0.7.5: that one release
+        x, y, z = (int(g) for g in exact.groups())
+        return (x, y, z), (x, y, z + 1)
     if raw.startswith("^"):
         raw = raw[1:].strip()
     if not re.fullmatch(r"\d+(\.\d+){0,2}", raw):
@@ -108,7 +114,7 @@ def caret_bounds(req):
 
 
 USAGE_MSG = (
-    'requirement "{req}" is not a bare or ^-prefixed version.\n'
+    'requirement "{req}" is not a bare, ^-prefixed or exact (=x.y.z) version.\n'
     "  This check models only the form this manifest uses. Extend it rather than\n"
     "  loosening it: a requirement it cannot compare must not pass silently."
 )

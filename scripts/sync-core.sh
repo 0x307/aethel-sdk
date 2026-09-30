@@ -6,8 +6,8 @@
 #   scripts/sync-core.sh <rev>      # move the pin to <rev>, then rebuild
 #
 # This is the one command. It re-pulls the WIT world, rebuilds the component,
-# rewrites the declared hash, moves the aethel-core dev-dependency to the
-# revision actually built, and leaves core/ consistent with the pin. The
+# rewrites the declared hash, checks that the aethel-core dev-dependency is the
+# release just vendored, and leaves core/ consistent with the pin. The
 # bindings in src/component.rs are generated from core/wit at compile time, so
 # `cargo test` after this picks up a reshaped world with no hand edits.
 #
@@ -108,6 +108,7 @@ cmp -s /tmp/build1.wasm /tmp/build2.wasm || {
 cp /tmp/build1.wasm /out/aethel_core.component.wasm
 cp wit/aethel-core.wit /out/aethel-core.wit
 git rev-parse HEAD > /out/rev
+sed -n -E 's/^version = "([^"]+)".*/\1/p' Cargo.toml | head -1 > /out/version
 ( cd /tmp && sha256sum build1.wasm | sed 's#build1.wasm#aethel_core.component.wasm#' ) > /out/component.sha256
 echo "built $(cat /out/component.sha256)"
 INNER
@@ -140,34 +141,29 @@ cp "$out/component.sha256" "$repo_root/core/component.sha256"
 # Keep the pin honest: record what was actually built, not what was asked for.
 sed -i -E "s#^rev = \".*\"#rev = \"$resolved\"#" "$pin"
 
-# Move the dev-dependency with it.
+# Require the dev-dependency to be the release just vendored.
 #
-# This script used to rewrite core/pin.toml and leave Cargo.toml alone, so every
-# re-vendor created exactly the drift that
-# `the_dev_dependency_matches_the_vendored_revision` exists to catch. The test
-# caught it and the script kept causing it, and the two revisions were then
-# reconciled by hand twice. A guard that fires on every run is describing a bug
-# in the thing that runs before it, so the fix belongs here, where the drift is
-# created, rather than in the test that reports it.
-#
-# It matters because tests/component_execution.rs compares the embedded
-# component against aethel-core's native API "at the same pinned revision". That
-# claim holds only while these two revisions agree; when they drifted at the
-# 0.4.0 migration the execution proof compared a 0.4.0 component against 0.3.2's
-# API and passed anyway.
-sed -i -E "/^aethel-core = \{/ s#rev = \"[0-9a-f]{40}\"#rev = \"$resolved\"#" "$manifest"
-
-# That substitution is a regex against a hand-maintained line. If the line is
-# ever reshaped it matches nothing and does nothing, which is the same silent
-# no-op this change exists to remove — so require it to have landed.
-if ! grep -qE "^aethel-core = \{.*rev = \"$resolved\"" "$manifest"; then
-  echo "could not update the aethel-core dev-dependency in Cargo.toml." >&2
-  echo "Set its rev to $resolved by hand, then fix the substitution in this script." >&2
+# The dev-dependency is an exact crates.io pin, `aethel-core = "=X.Y.Z"`, and
+# the execution proof compares the embedded component against that release's
+# native API. This script used to rewrite a git `rev` here; there is nothing to
+# rewrite now, so it checks instead. Silence would be the failure: a re-vendor
+# that moves core/ and leaves the pin behind has the proof comparing one
+# release's component against another's API. tests/core_provenance.rs catches
+# the same drift by bytes; this catches it at the command that causes it.
+version="$(cat "$out/version")"
+if [ -z "$version" ]; then
+  echo "could not read the aethel-core version at $resolved." >&2
+  exit 1
+fi
+if ! grep -qE "^aethel-core = \"=$version\"" "$manifest"; then
+  echo "core/ is now aethel-core $version at $resolved, but Cargo.toml does not pin it." >&2
+  echo "Set the dev-dependency to: aethel-core = \"=$version\"" >&2
+  echo "(it must be published on crates.io: scripts/check-crates-io-requirement.py)" >&2
   exit 1
 fi
 
 echo
-echo "core/ is now at $resolved"
+echo "core/ is now aethel-core $version at $resolved"
 echo "  $(cat "$repo_root/core/component.sha256")"
 echo
 # --all-features, not a bare `cargo test`. The credential surface —

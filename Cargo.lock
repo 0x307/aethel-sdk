@@ -23,8 +23,9 @@ dependencies = [
 
 [[package]]
 name = "aethel-core"
-version = "0.7.0"
-source = "git+https://github.com/0x307/aethel-core?rev=b98fe074975fdba822c3827c46a92090e59ea914#b98fe074975fdba822c3827c46a92090e59ea914"
+version = "0.7.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "26d52d81344620e9548ce5cd627d4eee4e85ecba987dbc480d70d075cebf355f"
 dependencies = [
  "cc",
  "chacha20poly1305",

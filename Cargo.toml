@@ -94,21 +94,18 @@ version = "0.2"
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 wasmtime = { version = "48.0.1", default-features = false, features = ["runtime", "component-model", "cranelift"] }
 
-# The execution proof compares the component against aethel-core's native API at
-# the same pinned revision. It is a dev-dependency: this crate never calls
-# aethel-core directly at runtime, it calls the component.
+# The execution proof compares the component against aethel-core's native API.
+# It is a dev-dependency: this crate never calls aethel-core directly at
+# runtime, it calls the component.
 #
-# `rev` MUST equal the one in core/pin.toml, or the proof compares the vendored
-# component against a different revision's native API while claiming otherwise.
-# scripts/sync-core.sh rewrites pin.toml and not this line, so they drifted once
-# already; the_dev_dependency_matches_the_vendored_revision in
-# tests/embedded_artifact.rs now fails if they disagree.
-#
-# `version` matters only at publish time: cargo drops the git source when
-# packaging and resolves this requirement against crates.io, so a stale one
-# fails `cargo publish` long after the local build stopped caring.
+# Exact, from crates.io, never a range and never a git source. A range would let
+# the comparison target move under the proof on the next patch. The pin is
+# checked by bytes, not labels: tests/core_provenance.rs asserts that
+# aethel_core::COMPONENT_SHA256 equals the digest of the component vendored in
+# core/, and fails if they describe different builds. scripts/sync-core.sh
+# refuses to finish unless this pin is the version it just vendored.
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
-aethel-core = { version = "0.7", git = "https://github.com/0x307/aethel-core", rev = "b98fe074975fdba822c3827c46a92090e59ea914" }
+aethel-core = "=0.7.4"
 
 [dev-dependencies]
 # Independent Multibase decoder used by tests/multikey.rs.

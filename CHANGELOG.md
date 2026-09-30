@@ -29,6 +29,20 @@ Documentation and metadata only. No change to the API, the wire formats or behav
 - `examples/trusted_signer.rs` and `examples/offline_receipt.rs`, both run in CI. The second
   signs and verifies in separate processes, and CI flips a byte to show verification fails.
 
+### Changed
+
+- **The embedded aethel-core component moves from 0.7.0 to 0.7.4.** Re-vendored with
+  `scripts/sync-core.sh` at the v0.7.4 commit and reproduced twice in the canonical container;
+  the digest equals core's own recorded `COMPONENT_SHA256` (`6781752478a8...`). The SDK does not
+  expose the new core functions yet; this only changes what is embedded.
+- **The aethel-core dev-dependency is an exact crates.io pin, `=0.7.4`, with no git source.**
+  The execution proof compares the component against that release's native API, and
+  `tests/core_provenance.rs` asserts by bytes that the linked crate and the vendored component
+  are the same build. `tests/embedded_artifact.rs` fails if a git source or a range returns, and
+  shows it can fail. `scripts/sync-core.sh` no longer rewrites a revision in `Cargo.toml`; it
+  refuses to finish unless the pin is the version it just vendored. The crates.io requirement
+  check in CI now understands the exact form and has controls for it.
+
 ### Changed (BREAKING)
 
 - **`Error` is now `#[non_exhaustive]`.** Downstream code that exhaustively

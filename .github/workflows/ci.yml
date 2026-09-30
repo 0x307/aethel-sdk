@@ -165,9 +165,9 @@ jobs:
     # 0.5.2's publish failed -- the requirement said "0.3" while every 0.3.x had
     # been yanked upstream, and no local check could tell.
     #
-    # `the_dev_dependency_matches_the_vendored_revision` does not cover this. It
-    # compares two strings in two files in this repository; the failure lives on
-    # crates.io.
+    # tests/core_provenance.rs does not cover this. It compares the linked crate's
+    # digest with the vendored component's; whether the pinned release exists and
+    # is not yanked lives on crates.io.
     #
     # This runs on every pull request rather than at publish, so a bad
     # requirement surfaces on the change that introduces it.
@@ -189,6 +189,14 @@ jobs:
 
       - name: Control - no matching release must be caught, and told apart from yanked
         run: python3 scripts/check-crates-io-requirement.py --requirement 9999.0 --expect no-match
+
+      # The exact form the manifest now uses. The first proves it resolves a real
+      # release; the second proves it can say no, for the right reason.
+      - name: Control - an exact pin on a published release must resolve
+        run: python3 scripts/check-crates-io-requirement.py --requirement =0.7.4 --expect ok
+
+      - name: Control - an exact pin on a release that does not exist must be caught
+        run: python3 scripts/check-crates-io-requirement.py --requirement =9999.0.0 --expect no-match
 
       - name: The requirement in Cargo.toml must resolve to a non-yanked release
         run: python3 scripts/check-crates-io-requirement.py

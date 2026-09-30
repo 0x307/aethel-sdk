@@ -122,36 +122,72 @@ fn the_pinned_revision_is_a_full_commit_sha() {
     );
 }
 
-/// The dev-dependency revision must equal the vendored revision.
+/// What is wrong with the manifest's aethel-core pin, if anything.
 ///
-/// `tests/component_execution.rs` claims it compares the embedded component
-/// against "aethel-core's native API at the same pinned revision". That claim is
-/// only true if `Cargo.toml`'s `rev` and `core/pin.toml`'s `rev` agree, and
-/// nothing enforced it: `scripts/sync-core.sh` rewrites `pin.toml` and leaves
-/// `Cargo.toml` alone. They drifted at the 0.4.0 migration, so for one release
-/// the execution proof compared a 0.4.0 component against 0.3.2's native API and
-/// passed, which made it a weaker check than it advertised.
-#[test]
-fn the_dev_dependency_matches_the_vendored_revision() {
-    let manifest = include_str!("../Cargo.toml");
-    let pin = include_str!("../core/pin.toml");
-
-    let field = |text: &str, key: &str| -> String {
-        text.lines()
-            .find(|line| line.trim_start().starts_with(key) || line.contains("aethel-core = {"))
-            .and_then(|line| line.split("rev = \"").nth(1))
-            .and_then(|rest| rest.split('"').next())
-            .unwrap_or_else(|| panic!("no rev found for {key}"))
-            .to_string()
+/// A function rather than inline asserts so the control below can show it says
+/// no. The pin must be exact (`"=X.Y.Z"`) and come from crates.io: a range lets
+/// the comparison target move under the execution proof, and a git source is the
+/// arrangement this replaced. A manifest with no pin at all is a problem too, so
+/// deleting the line cannot make the check pass.
+fn aethel_core_pin_problem(manifest: &str) -> Option<String> {
+    let live = |line: &&str| !line.trim_start().starts_with('#');
+    if manifest.lines().filter(live).any(|l| l.contains("git = \"")) {
+        return Some("the manifest has a git source".into());
+    }
+    let Some(line) = manifest
+        .lines()
+        .filter(live)
+        .find(|l| l.trim_start().starts_with("aethel-core = "))
+    else {
+        return Some("the manifest has no aethel-core dependency line".into());
     };
+    let requirement = line.split('"').nth(1).unwrap_or("");
+    let exact = requirement.strip_prefix('=').is_some_and(|v| {
+        let parts: Vec<&str> = v.split('.').collect();
+        parts.len() == 3
+            && parts
+                .iter()
+                .all(|p| !p.is_empty() && p.chars().all(|c| c.is_ascii_digit()))
+    });
+    if exact {
+        None
+    } else {
+        Some(format!(
+            "aethel-core is required as {requirement:?}, not an exact =X.Y.Z"
+        ))
+    }
+}
 
-    let vendored = field(pin, "rev");
-    let dev_dependency = field(manifest, "aethel-core");
-
+/// The aethel-core dev-dependency is an exact crates.io pin, not a git source.
+///
+/// `tests/component_execution.rs` compares the embedded component against
+/// aethel-core's native API. The old arrangement pinned a git `rev` that had to
+/// equal `core/pin.toml`'s, and drifted at the 0.4.0 migration. It is replaced
+/// by an exact release, with the agreement checked by bytes in
+/// `tests/core_provenance.rs` (`aethel_core::COMPONENT_SHA256` against the
+/// vendored digest), which a label comparison never could.
+///
+/// The control half shows the check can fail: a git source, a range, a partial
+/// version and a missing pin are each refused, next to the real manifest being
+/// accepted.
+#[test]
+fn the_aethel_core_dev_dependency_is_an_exact_crates_io_pin() {
+    let manifest = include_str!("../Cargo.toml");
     assert_eq!(
-        vendored, dev_dependency,
-        "core/pin.toml vendors {vendored} but the aethel-core dev-dependency is pinned to \
-         {dev_dependency}; the execution proof would compare the component against a different \
-         revision's native API"
+        aethel_core_pin_problem(manifest),
+        None,
+        "the aethel-core dev-dependency is not an exact crates.io pin"
+    );
+
+    let git = "aethel-core = { version = \"0.7\", git = \"https://example.invalid/x\", rev = \"abc\" }";
+    assert!(aethel_core_pin_problem(git).is_some(), "a git source was accepted");
+    assert!(aethel_core_pin_problem("aethel-core = \"0.7\"").is_some(), "a range was accepted");
+    assert!(
+        aethel_core_pin_problem("aethel-core = \"=0.7\"").is_some(),
+        "a partial version was accepted"
+    );
+    assert!(
+        aethel_core_pin_problem("# aethel-core = \"=0.7.4\"").is_some(),
+        "a missing pin was accepted"
     );
 }
