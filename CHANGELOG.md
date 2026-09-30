@@ -29,6 +29,17 @@ Documentation and metadata only. No change to the API, the wire formats or behav
 - `examples/trusted_signer.rs` and `examples/offline_receipt.rs`, both run in CI. The second
   signs and verifies in separate processes, and CI flips a byte to show verification fails.
 
+- **Purpose-separated signing (COR-18).** `Identity::sign_with_purpose`,
+  `Identity::sign_typed_with_purpose`, `verify_with_purpose` and `verify_typed_with_purpose`,
+  taking a `Purpose`. A signature made under one purpose fails under every other purpose and
+  under the empty context; a plain `sign` signature fails under every purpose. `Purpose` comes
+  from aethel-core's registry, read from the embedded component (`Purpose::registered()`,
+  `Purpose::from_name`), and has no constructor from bytes, so an ad hoc context string cannot
+  be used. A name that is not registered is `Error::UnknownPurpose`. `sign` and `verify` are
+  unchanged and remain the empty context. Tests check every registered purpose against every
+  other, in both directions against aethel-core's native implementation, and that the SDK's
+  registry is core's.
+
 ### Changed
 
 - **The embedded aethel-core component moves from 0.7.0 to 0.7.4.** Re-vendored with

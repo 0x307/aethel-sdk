@@ -92,9 +92,43 @@ cargo run --example offline_receipt -- verify ./receipt
 
 Change one byte of `receipt/statement.txt` and `verify` exits non-zero.
 
+## Signing for a purpose
+
+An agent that signs several kinds of statement with one key needs each signature bound to what
+it is for, so a signature made for one cannot be replayed as another. Sign under a registered
+purpose:
+
+```rust
+use aethel_sdk::{verify, verify_with_purpose, Identity, Purpose};
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let mut identity = Identity::generate()?;
+    let login = Purpose::from_name("AUTH_LOGIN_V1")?;
+    let step_up = Purpose::from_name("AUTH_STEP_UP_V1")?;
+
+    let message = b"a statement";
+    let signature = identity.sign_with_purpose(&login, message)?;
+
+    // It verifies under the purpose it was made for, and nowhere else.
+    assert!(verify_with_purpose(identity.public_key(), &login, message, &signature)?);
+    assert!(!verify_with_purpose(identity.public_key(), &step_up, message, &signature)?);
+    assert!(!verify(identity.public_key(), message, &signature)?);
+    Ok(())
+}
+```
+
+Purposes come from aethel-core's registry, read from the embedded component, so there are no
+ad hoc context strings: `Purpose::from_name` refuses a name that is not registered, and there
+is no way to build a `Purpose` from bytes. `Purpose::registered()` lists them all. Plain `sign`
+and `verify` are the empty context, so a plain signature fails under every purpose. Use one
+purpose per kind of statement, and never sign under a purpose other than the one you were asked
+for.
+
+The registry has no general-purpose receipt entry yet, so the offline receipt above signs with
+`sign_typed`, which is the empty context. When a purpose for agent receipts is registered in
+aethel-core it becomes available here with no change to this crate.
+
 ## What this does not do yet
 
-- Purpose-separated signing is not on the SDK surface. `sign` and `sign_typed` sign under the
-  empty context, so use one key for one kind of statement until it is.
 - Credentials are experimental and off by default (`experimental-credentials`). Do not rely
   on them.
