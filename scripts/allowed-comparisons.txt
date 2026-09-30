@@ -49,3 +49,13 @@ src/identity.rs	if set.shares.len() != 1 {
 # secret. Nothing branches on a coefficient value, only on how many there are,
 # so there is no secret-dependent timing signal to leak.
 src/identity.rs	if inner.public_b.len() != PROJECTION_COEFFICIENTS {
+
+# Typed-API validation before handing public material to the component. These
+# compare a public algorithm label, or the length of a public key or signature,
+# against the ML-DSA-65 constants. The algorithm enum and the lengths are public
+# structural metadata; no secret bytes are compared and nothing branches on a
+# key or signature value. The bytes themselves are verified inside the component.
+src/identity.rs	if public_key.algorithm != SigAlgorithm::MlDsa65 {
+src/identity.rs	if public_key.as_bytes().len() != SigAlgorithm::MlDsa65.public_key_size() {
+src/identity.rs	if signature.algorithm != SigAlgorithm::MlDsa65 {
+src/identity.rs	if signature.as_bytes().len() != SigAlgorithm::MlDsa65.signature_size() {

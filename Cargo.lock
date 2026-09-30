@@ -28,7 +28,7 @@ source = "git+https://github.com/0x307/aethel-core?rev=b98fe074975fdba822c3827c4
 dependencies = [
  "cc",
  "chacha20poly1305",
- "pqc-sig 0.4.1",
+ "pqc-sig 0.4.2",
  "rand_core 0.6.4",
  "serde",
  "sha3 0.10.9",
