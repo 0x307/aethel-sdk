@@ -49,6 +49,14 @@ Vendors `aethel-core` 0.7.5 (`6cc324d`).
 - `deny.toml` drops the RUSTSEC-2025-0141 (bincode) ignore, which matched nothing.
 - A rustdoc link in `disclosure` pointed at `crate::MIN_SEAL_KEY_BYTES`, which is not
   re-exported at the root. It now names `crate::identity::MIN_SEAL_KEY_BYTES`.
+- **The aethel-core pin test failed from the published crate.** `cargo package` rewrites
+  `aethel-core = "=X.Y.Z"` into a `[...dev-dependencies.aethel-core]` table with a `version`
+  key, and `tests/embedded_artifact.rs` read only the one-line form. So
+  `the_aethel_core_dev_dependency_is_an_exact_crates_io_pin` passed in this repository and
+  failed for anyone running the tests from the `.crate`, 0.9.0's included. It now reads both
+  forms, and its controls refuse a range, a git source or a missing version in the table form.
+  A new CI job, `tests pass from the published crate`, runs the whole suite from the extracted
+  archive (`scripts/validate-package.py --run-tests`).
 
 ## [0.8.1] - 2026-09-23
 
