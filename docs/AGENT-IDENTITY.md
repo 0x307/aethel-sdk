@@ -124,9 +124,12 @@ and `verify` are the empty context, so a plain signature fails under every purpo
 purpose per kind of statement, and never sign under a purpose other than the one you were asked
 for.
 
-The registry has no general-purpose receipt entry yet, so the offline receipt above signs with
-`sign_typed`, which is the empty context. When a purpose for agent receipts is registered in
-aethel-core it becomes available here with no change to this crate.
+Since 0.9.1 the registry has a purpose for agent receipts, `AGENT_RECEIPT_V1`
+(`aethel-core/agent-receipt/v1`), from aethel-core 0.7.5. A receipt signed under it verifies
+under no other purpose. The offline receipt example above still signs with `sign_typed`, which
+is the empty context. To bind a receipt to being a receipt, sign it with
+`sign_typed_with_purpose` and `Purpose::from_name("AGENT_RECEIPT_V1")`, and verify it with
+`verify_typed_with_purpose`.
 
 ## What this does not do yet
 

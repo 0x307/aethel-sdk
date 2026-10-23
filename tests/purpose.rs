@@ -139,6 +139,19 @@ fn the_sdk_registry_is_aethel_cores_registry() {
     }
 }
 
+/// aethel-core 0.7.5 registered `AGENT_RECEIPT_V1`. It reaches the SDK through
+/// the component, with no change to this crate. Pinned by name and by bytes, so
+/// a re-vendor that drops or renames it fails here and not in an application.
+#[test]
+fn the_agent_receipt_purpose_comes_through() {
+    let receipt = Purpose::from_name("AGENT_RECEIPT_V1").expect("AGENT_RECEIPT_V1 is registered");
+    assert_eq!(receipt.as_bytes(), b"aethel-core/agent-receipt/v1");
+    assert_eq!(
+        receipt.as_bytes(),
+        aethel_core::signing::purpose::AGENT_RECEIPT_V1
+    );
+}
+
 /// AC4. Only registered purposes exist. A name that is not registered is refused
 /// with a typed error, and a registered one is found. There is no constructor
 /// from bytes: the two `compile_fail` doctests on `Purpose` pin that.

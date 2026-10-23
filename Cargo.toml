@@ -1,6 +1,6 @@
 [package]
 name = "aethel-sdk"
-version = "0.9.0"
+version = "0.9.1"
 edition = "2021"
 description = "Ergonomic Rust SDK over aethel-core's post-quantum identity primitives: generate, sign, verify, project, recover"
 authors = ["Ed Johnson"]
@@ -105,7 +105,7 @@ wasmtime = { version = "48.0.7", default-features = false, features = ["runtime"
 # core/, and fails if they describe different builds. scripts/sync-core.sh
 # refuses to finish unless this pin is the version it just vendored.
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
-aethel-core = "=0.7.4"
+aethel-core = "=0.7.5"
 
 [dev-dependencies]
 # Independent Multibase decoder used by tests/multikey.rs.
