@@ -129,6 +129,12 @@ fn the_pinned_revision_is_a_full_commit_sha() {
 /// the comparison target move under the execution proof, and a git source is the
 /// arrangement this replaced. A manifest with no pin at all is a problem too, so
 /// deleting the line cannot make the check pass.
+///
+/// It reads both forms the pin takes. The repository's manifest writes it on
+/// one line, `aethel-core = "=X.Y.Z"`. `cargo package` normalizes that into a
+/// table, `[...dev-dependencies.aethel-core]` followed by `version = "=X.Y.Z"`,
+/// and that is the manifest a crates.io user's copy of this test reads. Reading
+/// only the one-line form failed every packaged run, 0.9.0's included.
 fn aethel_core_pin_problem(manifest: &str) -> Option<String> {
     let live = |line: &&str| !line.trim_start().starts_with('#');
     if manifest
@@ -138,28 +144,55 @@ fn aethel_core_pin_problem(manifest: &str) -> Option<String> {
     {
         return Some("the manifest has a git source".into());
     }
-    let Some(line) = manifest
-        .lines()
-        .filter(live)
-        .find(|l| l.trim_start().starts_with("aethel-core = "))
-    else {
-        return Some("the manifest has no aethel-core dependency line".into());
-    };
-    let requirement = line.split('"').nth(1).unwrap_or("");
-    let exact = requirement.strip_prefix('=').is_some_and(|v| {
-        let parts: Vec<&str> = v.split('.').collect();
-        parts.len() == 3
-            && parts
-                .iter()
-                .all(|p| !p.is_empty() && p.chars().all(|c| c.is_ascii_digit()))
-    });
-    if exact {
-        None
-    } else {
-        Some(format!(
-            "aethel-core is required as {requirement:?}, not an exact =X.Y.Z"
-        ))
+    let quoted = |line: &str| line.split('"').nth(1).unwrap_or("").to_string();
+
+    // One entry per aethel-core dependency found. A table form starts as None
+    // and stays None if the table has no `version` key.
+    let mut requirements: Vec<Option<String>> = Vec::new();
+    let mut in_aethel_core_table = false;
+    for line in manifest.lines().filter(live) {
+        let line = line.trim();
+        if line.starts_with('[') {
+            let header = line.split('#').next().unwrap_or("").trim_end();
+            in_aethel_core_table = header.ends_with("dependencies.aethel-core]");
+            if in_aethel_core_table {
+                requirements.push(None);
+            }
+        } else if in_aethel_core_table {
+            let is_version = line
+                .strip_prefix("version")
+                .is_some_and(|rest| rest.trim_start().starts_with('='));
+            if is_version {
+                if let Some(last) = requirements.last_mut() {
+                    *last = Some(quoted(line));
+                }
+            }
+        } else if line.starts_with("aethel-core = ") {
+            requirements.push(Some(quoted(line)));
+        }
     }
+
+    if requirements.is_empty() {
+        return Some("the manifest has no aethel-core dependency".into());
+    }
+    for requirement in requirements {
+        let Some(requirement) = requirement else {
+            return Some("the aethel-core dependency table has no version".into());
+        };
+        let exact = requirement.strip_prefix('=').is_some_and(|v| {
+            let parts: Vec<&str> = v.split('.').collect();
+            parts.len() == 3
+                && parts
+                    .iter()
+                    .all(|p| !p.is_empty() && p.chars().all(|c| c.is_ascii_digit()))
+        });
+        if !exact {
+            return Some(format!(
+                "aethel-core is required as {requirement:?}, not an exact =X.Y.Z"
+            ));
+        }
+    }
+    None
 }
 
 /// The aethel-core dev-dependency is an exact crates.io pin, not a git source.
@@ -173,7 +206,8 @@ fn aethel_core_pin_problem(manifest: &str) -> Option<String> {
 ///
 /// The control half shows the check can fail: a git source, a range, a partial
 /// version and a missing pin are each refused, next to the real manifest being
-/// accepted.
+/// accepted. The same holds for the table form `cargo package` writes: an exact
+/// version is accepted, and a range, a git source or no version is refused.
 #[test]
 fn the_aethel_core_dev_dependency_is_an_exact_crates_io_pin() {
     let manifest = include_str!("../Cargo.toml");
@@ -200,5 +234,34 @@ fn the_aethel_core_dev_dependency_is_an_exact_crates_io_pin() {
     assert!(
         aethel_core_pin_problem("# aethel-core = \"=0.7.4\"").is_some(),
         "a missing pin was accepted"
+    );
+
+    // The normalized form, as `cargo package` writes it into the .crate.
+    let table = |body: &str| {
+        format!(
+            "[dev-dependencies.multibase]\nversion = \"0.9\"\n\n\
+             [target.'cfg(not(target_arch = \"wasm32\"))'.dev-dependencies.aethel-core]\n\
+             {body}\n\n[features]\nversion = \"0.1\"\n"
+        )
+    };
+    assert_eq!(
+        aethel_core_pin_problem(&table("version = \"=0.7.5\"")),
+        None,
+        "the packaged table form with an exact version was refused"
+    );
+    assert!(
+        aethel_core_pin_problem(&table("version = \"0.7\"")).is_some(),
+        "a range in the table form was accepted"
+    );
+    assert!(
+        aethel_core_pin_problem(&table(
+            "version = \"=0.7.5\"\ngit = \"https://example.invalid/x\""
+        ))
+        .is_some(),
+        "a git source in the table form was accepted"
+    );
+    assert!(
+        aethel_core_pin_problem(&table("default-features = false")).is_some(),
+        "the table form with no version was accepted"
     );
 }

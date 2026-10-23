@@ -57,10 +57,13 @@ the authoritative release verification.
 ## If post-publish smoke fails
 
 Treat the published release as defective. Do not republish or overwrite its
-immutable version, and CI must never yank it automatically.
+immutable version, and do not yank it. This crate never yanks a published
+version, including for a security bug: see "Versions and yanks" in
+`STABILITY.md`. CI must never yank either.
 
-1. Yank the defective crate version manually on crates.io.
-2. Record the yank and its reason in `CHANGELOG.md`.
-3. Fix the issue in a new version and repeat the manual pre-publish checks.
-4. Publish the corrected version, push its matching tag, and rerun
+1. Record the defect and the affected version in `CHANGELOG.md`.
+2. Fix the issue in a new version and repeat the manual pre-publish checks.
+3. Publish the corrected version, push its matching tag, and rerun
    `post-publish-smoke.yml` for that exact version and tag.
+4. If the defect is a security bug, file a RustSec advisory that names the
+   affected versions, so `cargo audit` and `cargo deny` flag them.

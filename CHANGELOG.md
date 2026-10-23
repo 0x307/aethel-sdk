@@ -7,6 +7,57 @@ adheres to the breaking-change and deprecation rules in
 [`STABILITY.md`](./STABILITY.md) rather than strict SemVer prior to `1.0.0` — see that
 document for what counts as breaking inside `0.x`.
 
+## [0.9.1] - 2026-10-23
+
+A patch release on the 0.9 line. No public API changes. No version was yanked: 0.9.0 and the
+releases before it stay published. The 0.9 line continues. When 0.10.0 ships, 0.9 gets
+security fixes for 6 months after that date, under the version policy in
+[`STABILITY.md`](./STABILITY.md).
+
+Vendors `aethel-core` 0.7.5 (`6cc324d`).
+
+### Changed
+
+- **The embedded aethel-core component moves from 0.7.4 to 0.7.5.** Re-vendored with
+  `scripts/sync-core.sh` at the v0.7.5 commit and reproduced twice in the canonical container.
+  Its SHA-256 equals the `component.sha256` published in the aethel-core 0.7.5 crate,
+  `0a1c677391c11b6ea097ee4e3eea0b0ba44a6def150adac30aed2bbc90beff0d`.
+- **The aethel-core dev-dependency is `=0.7.5`.** aethel-core 0.7.5 moved to `pqc-sig` 0.5,
+  so the SDK and the core it embeds are now on one `pqc-sig` line. `pqc-sig` 0.4 is no longer
+  in this repository's `Cargo.lock`.
+- **The `wasmtime` floor in `Cargo.toml` moves from 48.0.1 to 48.0.7.** `wasmtime` is a normal
+  dependency of this crate, so its advisories reach SDK users, and the old floor still allowed
+  a vulnerable release. 48.0.7 clears RUSTSEC-2026-0325, 0326, 0327, 0353, 0354, 0355 through
+  0359, 0361 through 0364, 0378 and 0379. It declares rust-version 1.95, so this crate's MSRV
+  does not move.
+
+### Added
+
+- **`AGENT_RECEIPT_V1`** (`aethel-core/agent-receipt/v1`), aethel-core 0.7.5's purpose for an
+  agent's receipt, is in `Purpose::registered()` and `Purpose::from_name`. It comes from the
+  component, so no SDK code changed to carry it. A test pins it by name and bytes.
+  `docs/AGENT-IDENTITY.md` says how to sign a receipt under it.
+- **A version policy** in `STABILITY.md`, replacing the old yank rules: nothing is yanked,
+  including for a security bug, which is fixed forward with a RustSec advisory; more than one
+  line may be live; a legacy line gets security fixes for 6 months after its successor ships,
+  then is marked unsupported and stays downloadable. `RELEASING.md` no longer yanks a release
+  whose post-publish smoke fails.
+
+### Fixed
+
+- `Cargo.lock` moves the dev-only `ctutils` from 0.4.2 to 0.4.5, for RUSTSEC-2026-0385.
+- `deny.toml` drops the RUSTSEC-2025-0141 (bincode) ignore, which matched nothing.
+- A rustdoc link in `disclosure` pointed at `crate::MIN_SEAL_KEY_BYTES`, which is not
+  re-exported at the root. It now names `crate::identity::MIN_SEAL_KEY_BYTES`.
+- **The aethel-core pin test failed from the published crate.** `cargo package` rewrites
+  `aethel-core = "=X.Y.Z"` into a `[...dev-dependencies.aethel-core]` table with a `version`
+  key, and `tests/embedded_artifact.rs` read only the one-line form. So
+  `the_aethel_core_dev_dependency_is_an_exact_crates_io_pin` passed in this repository and
+  failed for anyone running the tests from the `.crate`, 0.9.0's included. It now reads both
+  forms, and its controls refuse a range, a git source or a missing version in the table form.
+  A new CI job, `tests pass from the published crate`, runs the whole suite from the extracted
+  archive (`scripts/validate-package.py --run-tests`).
+
 ## [0.8.1] - 2026-09-23
 
 Documentation and metadata only. No change to the API, the wire formats or behaviour.

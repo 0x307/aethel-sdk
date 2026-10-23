@@ -8,6 +8,13 @@ a README command that could not run from the crate they downloaded.
 Usage:
     scripts/validate-package.py
     scripts/validate-package.py --negative-control
+    scripts/validate-package.py --run-tests
+
+--run-tests also runs the test suite from inside the extracted archive. The
+crate's tests read files as packaged, including the Cargo.toml that
+`cargo package` rewrites, so a test can pass in this checkout and fail for
+every crates.io user. That happened to the aethel-core pin check through
+0.9.0. It costs one full build, so it is a flag and its own CI job.
 """
 
 import argparse
@@ -195,12 +202,31 @@ def assert_readme_runnable_paths(package_root: Path) -> None:
         )
 
 
-def validate(project_dir: Path) -> None:
+def run_packaged_tests(package_root: Path, scratch_dir: Path) -> None:
+    """Run the suite from the extracted crate, against its own Cargo.lock."""
+    subprocess.run(
+        [
+            "cargo",
+            "test",
+            "--locked",
+            "--all-features",
+            "--no-fail-fast",
+            "--target-dir",
+            str(scratch_dir / "packaged-test-target"),
+        ],
+        cwd=package_root,
+        check=True,
+    )
+
+
+def validate(project_dir: Path, run_tests: bool = False) -> None:
     with tempfile.TemporaryDirectory(prefix="aethel-package-") as temp:
         package_root = package_and_extract(project_dir, Path(temp))
         assert_expected_file_set(package_root)
         assert_embedded_wasm_hash(package_root)
         assert_readme_runnable_paths(package_root)
+        if run_tests:
+            run_packaged_tests(package_root, Path(temp))
 
 
 def run_negative_control(project_dir: Path) -> None:
@@ -248,6 +274,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--project-dir", type=Path, default=Path.cwd())
     parser.add_argument("--negative-control", action="store_true")
+    parser.add_argument("--run-tests", action="store_true")
     args = parser.parse_args()
 
     try:
@@ -255,7 +282,7 @@ def main() -> int:
         if args.negative_control:
             run_negative_control(project_dir)
         else:
-            validate(project_dir)
+            validate(project_dir, run_tests=args.run_tests)
     except (PackageValidationError, subprocess.CalledProcessError) as error:
         print(f"package validation FAILED: {error}", file=sys.stderr)
         return 1
