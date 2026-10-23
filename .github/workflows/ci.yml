@@ -97,19 +97,38 @@ jobs:
       - name: Prefetch deps and build test binaries (network available here)
         run: cargo build --all-targets
 
+      # rustup's directories are named explicitly, as aethel-core does. sudo
+      # resets HOME to /root, and once the runner stopped exporting
+      # RUSTUP_HOME, rustup under sudo looked in /root/.rustup, found no
+      # toolchain, and exited before cargo ran. That failed the suite step, and
+      # it let the negative control below "fail as expected" without testing
+      # anything. The negative control now also requires that its test ran and
+      # failed.
       - name: The suite MUST pass with no network interface available
         # The negative control is skipped by name here rather than by listing
         # every other suite, so a new test file is covered by this proof
         # automatically instead of being silently left out of it.
         run: |
-          sudo -E env "PATH=$PATH" unshare --net --             cargo test --offline -- --skip network_call_succeeds_when_a_route_exists
+          sudo -E env "PATH=$PATH" "RUSTUP_HOME=${RUSTUP_HOME:-$HOME/.rustup}" "CARGO_HOME=${CARGO_HOME:-$HOME/.cargo}" \
+            unshare --net -- \
+            cargo test --offline -- --skip network_call_succeeds_when_a_route_exists
 
       - name: Negative control MUST fail with no network interface available
         run: |
-          if sudo -E env "PATH=$PATH" unshare --net --                cargo test --offline --test network_isolation_negative_control; then
+          if sudo -E env "PATH=$PATH" "RUSTUP_HOME=${RUSTUP_HOME:-$HOME/.rustup}" "CARGO_HOME=${CARGO_HOME:-$HOME/.cargo}" \
+               unshare --net -- \
+               cargo test --offline --test network_isolation_negative_control > negative-control.log 2>&1; then
+            cat negative-control.log
             echo "::error::negative-control network call succeeded inside the network-isolated step — isolation is NOT enforced, and the offline-generation claim is unproven"
             exit 1
           fi
+          cat negative-control.log
+          # A failure only counts if the test ran and failed. Anything earlier
+          # (no toolchain, a build error) says nothing about isolation.
+          grep -q "^test network_call_succeeds_when_a_route_exists \.\.\. FAILED" negative-control.log || {
+            echo "::error::the negative control did not run its test, so its failure is not evidence of isolation"
+            exit 1
+          }
           echo "Negative control failed as expected under network isolation — isolation confirmed real."
 
   comparisons:

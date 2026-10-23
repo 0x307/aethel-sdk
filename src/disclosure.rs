@@ -64,7 +64,7 @@ pub const MAX_ATTRIBUTES: usize = 8;
 
 /// Minimum issuer seed length: 32 bytes.
 ///
-/// The component refuses anything shorter. As with [`crate::MIN_SEAL_KEY_BYTES`],
+/// The component refuses anything shorter. As with [`crate::identity::MIN_SEAL_KEY_BYTES`],
 /// the length is enforced and the quality of the bytes is not: a low-entropy
 /// seed satisfies this and still gives away the issuer's whole authority to
 /// anyone who guesses it.
