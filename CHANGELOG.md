@@ -7,6 +7,34 @@ adheres to the breaking-change and deprecation rules in
 [`STABILITY.md`](./STABILITY.md) rather than strict SemVer prior to `1.0.0` — see that
 document for what counts as breaking inside `0.x`.
 
+## [0.9.2] - 2026-11-16
+
+A security patch on the 0.9 line. No public API changes. Upgrade from 0.9.1.
+
+Vendors `aethel-core` 0.7.6 (`2a09d1e`).
+
+### Security
+
+- **The embedded component no longer carries RUSTSEC-2026-0385.** The component in 0.9.1
+  was built from aethel-core 0.7.5's `Cargo.lock`, which has `ctutils` 0.4.2: the
+  non-constant-time mask generation and `u128` comparisons the advisory describes, reached
+  through `ml-dsa`. Because it is compiled into `core/aethel_core.component.wasm`,
+  `cargo audit` and `cargo deny` cannot see it from a project that depends on this crate.
+  aethel-core 0.7.6 locks `ctutils` 0.4.4, the fixed release, and 0.9.2 embeds a component
+  built from it. The SDK's own native dependencies were already on a fixed `ctutils`.
+- **The `wasmtime` floor in `Cargo.toml` moves from 48.0.7 to 48.0.8.** `wasmtime` is a normal
+  dependency of this crate, so its advisories reach SDK users, and 48.0.7 is affected by
+  RUSTSEC-2026-0422, 0423 and 0424. 48.0.8 fixes all three on the 48 line.
+
+### Changed
+
+- **The embedded aethel-core component moves from 0.7.5 to 0.7.6.** Re-vendored with
+  `scripts/sync-core.sh` at the v0.7.6 commit and reproduced twice in the canonical container.
+  Its SHA-256 equals the `component.sha256` published in the aethel-core 0.7.6 crate,
+  `7be435d9565d4ea1be06246ecf962f63b2aa122aed1a254fe715d2acc30392a4`.
+- **The aethel-core dev-dependency is `=0.7.6`.**
+- **`Cargo.lock` moves `pqc-sig` from 0.5.0 to 0.5.2.**
+
 ## [0.9.1] - 2026-10-23
 
 A patch release on the 0.9 line. No public API changes. No version was yanked: 0.9.0 and the
