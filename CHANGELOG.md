@@ -22,6 +22,9 @@ Vendors `aethel-core` 0.7.6 (`2a09d1e`).
   `cargo audit` and `cargo deny` cannot see it from a project that depends on this crate.
   aethel-core 0.7.6 locks `ctutils` 0.4.4, the fixed release, and 0.9.2 embeds a component
   built from it. The SDK's own native dependencies were already on a fixed `ctutils`.
+- **The `wasmtime` floor in `Cargo.toml` moves from 48.0.7 to 48.0.8.** `wasmtime` is a normal
+  dependency of this crate, so its advisories reach SDK users, and 48.0.7 is affected by
+  RUSTSEC-2026-0422, 0423 and 0424. 48.0.8 fixes all three on the 48 line.
 
 ### Changed
 
